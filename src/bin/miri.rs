@@ -31,18 +31,14 @@ impl Commands {
 #[derive(Subcommand)]
 enum MiriAction {
     CycleFocusedWorkspaceMode,
-    Action2,
-    Action3,
-    Action4,
+    Spawn,
 }
 
 impl MiriAction {
-    fn run(&self, niri_ipc: Socket) {
+    fn run(&self, mut niri_ipc: Socket) {
         match self {
             MiriAction::CycleFocusedWorkspaceMode => {}
-            MiriAction::Action2 => {}
-            MiriAction::Action3 => {}
-            MiriAction::Action4 => {}
+            MiriAction::Spawn => {}
         }
     }
 }
@@ -69,7 +65,7 @@ impl MiriGet {
 }
 
 fn main() {
-    let mut niri_ipc_socket = Socket::connect().expect(
+    let niri_ipc_socket = Socket::connect().expect(
         "Failed to connect to niri ipc. Make sure you're using this inside a niri session.",
     );
     let args = Args::parse();
