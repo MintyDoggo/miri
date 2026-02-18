@@ -139,9 +139,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "common",
- "config",
  "niri-ipc",
- "serde",
  "serde_json",
 ]
 
@@ -157,9 +155,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "config",
- "niri-ipc",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -558,11 +554,8 @@ dependencies = [
 name = "service"
 version = "0.1.0"
 dependencies = [
- "clap",
  "common",
- "config",
  "niri-ipc",
- "serde",
  "serde_json",
 ]
 
