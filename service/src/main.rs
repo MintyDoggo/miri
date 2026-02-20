@@ -108,15 +108,6 @@ async fn run_niri_event_listener(tx: Sender<MiriEvent>) {
     }
 }
 
-fn handle_command(
-    command: Command,
-    event_state: &EventStreamState,
-    service_state: &mut ServiceState,
-    action_socket: &mut Socket,
-) {
-    command.run(action_socket, event_state, service_state);
-}
-
 fn handle_niri_event(
     event: Event,
     event_state: &mut EventStreamState,
@@ -175,7 +166,7 @@ async fn main() {
     while let Some(event) = rx.recv().await {
         match event {
             MiriEvent::CliCommand(command) => {
-                handle_command(command, &event_state, &mut service_state, &mut action_socket)
+                command.run(&mut action_socket, &event_state, &mut service_state);
             }
             MiriEvent::NiriEvent(event) => {
                 handle_niri_event(event, &mut event_state, &mut service_state, &mut action_socket)
