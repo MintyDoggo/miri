@@ -1,7 +1,7 @@
 use clap::Parser;
 use cli::miri_commands::*;
 use common::{Args, Command, MiriAction, MiriGet};
-use niri_ipc::{Request, socket::Socket};
+use niri_ipc::{socket::Socket, Request};
 
 trait CliRunner {
     fn run(&self, niri_ipc: Socket);
@@ -23,6 +23,9 @@ impl CliRunner for MiriAction {
                 send_command_to_miri_service(Command::Action {
                     action: MiriAction::CycleFocusedWorkspaceMode,
                 });
+            }
+            MiriAction::SetFocusedWorkspaceMode { mode: _ } => {
+                send_command_to_miri_service(Command::Action { action: self.clone() });
             }
             MiriAction::Spawn => {}
         }

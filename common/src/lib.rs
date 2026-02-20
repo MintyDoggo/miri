@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 
 pub mod config;
@@ -45,9 +45,10 @@ pub enum Command {
     },
 }
 
-#[derive(Debug, Subcommand, Serialize, Deserialize)]
+#[derive(Debug, Clone, Subcommand, Serialize, Deserialize)]
 pub enum MiriAction {
     CycleFocusedWorkspaceMode,
+    SetFocusedWorkspaceMode { mode: Mode },
     Spawn,
 }
 
@@ -57,7 +58,7 @@ pub enum MiriGet {
     OtherThing,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 pub enum Mode {
     Scroll,
     Master,

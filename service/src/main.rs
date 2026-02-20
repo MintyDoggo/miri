@@ -9,6 +9,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use niri_ipc::{Action, Event, Window};
 use niri_ipc::{Request, socket::Socket};
 
+use service::master::force_workspace_windows_into_layout_mode;
 use service::niri_ipc_utils::{get_focused_workspace_mode, get_windows_on_focused_workspace, window_is_new};
 use service::service_state::ServiceState;
 
@@ -28,7 +29,7 @@ impl CliRunner for Command {
 }
 
 impl CliRunner for MiriAction {
-    fn run(&self, _action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
+    fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
         match self {
             MiriAction::CycleFocusedWorkspaceMode => {
                 println!("[ACTION]: CycleFocusedWorkspaceMode");
@@ -36,6 +37,19 @@ impl CliRunner for MiriAction {
                 service_state
                     .workspace_modes
                     .cycle_mode_on_focused_workspace(&event_state);
+            }
+            MiriAction::SetFocusedWorkspaceMode { mode } => {
+                println!("[ACTION]: SetFocusedWorkspaceMode to {:?}", mode);
+                service_state
+                    .workspace_modes
+                    .set_mode_on_focused_workspace(event_state, *mode);
+
+                let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
+                    eprintln!("Could not get workspace windows");
+                    return;
+                };
+
+                force_workspace_windows_into_layout_mode(workspace_windows, action_socket, &service_state.config, *mode)
             }
             MiriAction::Spawn => {
                 println!("[ACTION]: Spawn");

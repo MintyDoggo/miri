@@ -43,7 +43,7 @@ pub fn get_focused_workspace_mode(workspace_modes: &WorkspaceModes, event_state:
 
     println!(
         "workspace mode: {:?}",
-        workspace_modes.get_mode(output, focused_workspace.idx,)
+        workspace_modes.get_mode(output, focused_workspace.idx)
     );
 
     Some(workspace_modes.get_mode(output, focused_workspace.idx))
