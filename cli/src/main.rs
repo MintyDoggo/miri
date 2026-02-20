@@ -1,6 +1,6 @@
 use clap::Parser;
 use cli::miri_commands::*;
-use common::{Args, Command, MiriAction, MiriGet, config::MiriConfig};
+use common::{Args, Command, MiriAction, MiriGet};
 use niri_ipc::{Request, socket::Socket};
 
 trait CliRunner {
@@ -48,11 +48,6 @@ impl CliRunner for MiriGet {
 }
 
 fn main() {
-    // test config file
-    let config = MiriConfig::load();
-    println!("{}", config.default_workspace_mode.as_str());
-    println!("{}", config.master_column_default_width_percentage);
-
     let niri_ipc_socket =
         Socket::connect().expect("Failed to connect to niri ipc. Make sure you're using this inside a niri session");
     let args = Args::parse();

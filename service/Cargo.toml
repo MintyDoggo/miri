@@ -7,3 +7,4 @@ edition = "2024"
 common = { path = "../common" }
 niri-ipc = "25.11.0"
 serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }

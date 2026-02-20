@@ -1,28 +1,41 @@
-use common::Mode;
+use common::{Mode, config::MiriConfig};
 use niri_ipc::state::EventStreamState;
 use std::collections::HashMap;
 
 use crate::niri_ipc_utils::get_focused_workspace;
 
-#[derive(Default)]
 pub struct ServiceState {
     pub workspace_modes: WorkspaceModes,
+    pub config: MiriConfig,
+}
+
+impl ServiceState {
+    pub fn new(config: MiriConfig) -> Self {
+        ServiceState {
+            workspace_modes: WorkspaceModes::new(config.default_workspace_mode),
+            config,
+        }
+    }
 }
 
 pub struct WorkspaceModes {
     // output name and index used as key
     // FIXME: solve case of output name being the same
     modes: HashMap<(String, u8), Mode>,
+    default_mode: Mode,
 }
 
 impl WorkspaceModes {
-    pub fn new() -> Self {
-        WorkspaceModes { modes: HashMap::new() }
+    pub fn new(default_mode: Mode) -> Self {
+        WorkspaceModes {
+            modes: HashMap::new(),
+            default_mode,
+        }
     }
 
     pub fn get_mode(&self, output: &str, index: u8) -> Mode {
         let Some(current_mode) = self.modes.get(&(output.to_string(), index)) else {
-            return Mode::Scroll;
+            return self.default_mode;
         };
         *current_mode
     }
@@ -64,11 +77,5 @@ impl WorkspaceModes {
         };
 
         self.cycle_mode(output, focused_workspace.idx);
-    }
-}
-
-impl Default for WorkspaceModes {
-    fn default() -> Self {
-        Self::new()
     }
 }

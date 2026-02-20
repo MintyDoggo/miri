@@ -30,7 +30,7 @@ pub fn get_windows_on_focused_workspace(event_state: &EventStreamState) -> Optio
     Some(workspace_windows)
 }
 
-pub fn get_focused_workspace_mode(service_state: &WorkspaceModes, event_state: &EventStreamState) -> Option<Mode> {
+pub fn get_focused_workspace_mode(workspace_modes: &WorkspaceModes, event_state: &EventStreamState) -> Option<Mode> {
     let Some(focused_workspace) = get_focused_workspace(&event_state) else {
         eprintln!("Failed to get focused workspace");
         return None;
@@ -41,5 +41,10 @@ pub fn get_focused_workspace_mode(service_state: &WorkspaceModes, event_state: &
         return None;
     };
 
-    Some(service_state.get_mode(output, focused_workspace.idx))
+    println!(
+        "workspace mode: {:?}",
+        workspace_modes.get_mode(output, focused_workspace.idx,)
+    );
+
+    Some(workspace_modes.get_mode(output, focused_workspace.idx))
 }

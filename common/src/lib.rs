@@ -2,6 +2,8 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
 pub mod config;
+pub mod miri_socket;
+pub mod niri_socket;
 
 pub const MIRI_SOCKET_PATH: &str = "/tmp/modal-niri.sock";
 

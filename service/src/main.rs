@@ -1,30 +1,25 @@
+use std::iter;
+
 use common::config::MiriConfig;
-use common::{Command, IPCMessage, IPCMessageContainer, MIRI_SOCKET_PATH, MiriAction, MiriGet, Mode};
+use common::miri_socket::MiriListener;
+use common::niri_socket::NiriSocket;
+use common::{Command, IPCMessage, IPCMessageContainer, MiriAction, MiriGet, Mode};
+
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
+use niri_ipc::{Action, Event, Window};
 use niri_ipc::{Request, socket::Socket};
+
 use service::niri_ipc_utils::{get_focused_workspace_mode, get_windows_on_focused_workspace, window_is_new};
 use service::service_state::ServiceState;
-use std::io::{BufRead, BufReader};
-use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
+
+use tokio::sync::mpsc::Sender;
 
 trait CliRunner {
-    fn run(
-        &self,
-        action_socket: Arc<Mutex<Socket>>,
-        event_state: Arc<RwLock<EventStreamState>>,
-        service_state: Arc<Mutex<ServiceState>>,
-    );
+    fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState);
 }
 
 impl CliRunner for Command {
-    fn run(
-        &self,
-        action_socket: Arc<Mutex<Socket>>,
-        event_state: Arc<RwLock<EventStreamState>>,
-        service_state: Arc<Mutex<ServiceState>>,
-    ) {
+    fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
         match self {
             Command::Action { action } => action.run(action_socket, event_state, service_state),
             Command::Get { get } => get.run(action_socket, event_state, service_state),
@@ -33,17 +28,10 @@ impl CliRunner for Command {
 }
 
 impl CliRunner for MiriAction {
-    fn run(
-        &self,
-        _action_socket: Arc<Mutex<Socket>>,
-        event_state: Arc<RwLock<EventStreamState>>,
-        service_state: Arc<Mutex<ServiceState>>,
-    ) {
+    fn run(&self, _action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
         match self {
             MiriAction::CycleFocusedWorkspaceMode => {
                 println!("[ACTION]: CycleFocusedWorkspaceMode");
-                let event_state = event_state.read().expect("Could not get read lock on event_state");
-                let mut service_state = service_state.lock().expect("Could not get lock for service state");
 
                 service_state
                     .workspace_modes
@@ -57,12 +45,7 @@ impl CliRunner for MiriAction {
 }
 
 impl CliRunner for MiriGet {
-    fn run(
-        &self,
-        _action_socket: Arc<Mutex<Socket>>,
-        _event_state: Arc<RwLock<EventStreamState>>,
-        _service_state: Arc<Mutex<ServiceState>>,
-    ) {
+    fn run(&self, _action_socket: &mut Socket, _event_state: &EventStreamState, _service_state: &mut ServiceState) {
         match self {
             MiriGet::FocusedWorkspaceMode => {
                 println!("[GET]: FocusedWorkspaceMode");
@@ -74,95 +57,150 @@ impl CliRunner for MiriGet {
     }
 }
 
-// TODO: this function is half ai generated, review later
-fn handle_cli(
-    stream: UnixStream,
-    action_socket: Arc<Mutex<Socket>>,
-    event_state: Arc<RwLock<EventStreamState>>,
-    service_state: Arc<Mutex<ServiceState>>,
-) {
-    let reader = BufReader::new(stream);
-    for line in reader.lines() {
-        match line {
-            Ok(command_str) => {
-                let command_str = command_str.trim();
-                if command_str.is_empty() {
-                    continue;
-                }
+enum MiriEvent {
+    CliCommand(Command),
+    NiriEvent(niri_ipc::Event),
+    // i can easily add other event listeners here such as mouse, keyboard, etc. these would be part of THIS process
+}
 
-                match serde_json::from_str::<IPCMessageContainer>(command_str) {
-                    Ok(container) => match container.message {
-                        IPCMessage::CliExecute(command) => {
-                            command.run(action_socket.clone(), event_state.clone(), service_state.clone());
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("Failed to parse command '{}': {}", command_str, e);
+async fn run_cli_listener(tx: Sender<MiriEvent>) {
+    let listener = MiriListener::bind().await;
+
+    loop {
+        let mut socket = listener.accept().await;
+        while let Some(line) = socket.read().await {
+            match serde_json::from_str::<IPCMessageContainer>(&line) {
+                Ok(container) => {
+                    let IPCMessage::CliExecute(command) = container.message;
+                    if let Err(e) = tx.send(MiriEvent::CliCommand(command)).await {
+                        eprintln!("Failed to send command to main loop: {}", e);
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("Error reading from client: {}", e);
-                break;
+                Err(e) => eprintln!("Failed to parse message '{}': {}", line.trim(), e),
             }
         }
     }
 }
 
-fn main() {
-    let socket_path = MIRI_SOCKET_PATH;
-    let _ = std::fs::remove_file(socket_path);
+async fn run_niri_event_listener(tx: Sender<MiriEvent>) {
+    let mut socket = NiriSocket::connect().await;
+    socket.send(&Request::EventStream).await;
 
-    let cli_listener = UnixListener::bind(socket_path).expect("Failed to bind to miri unix socket");
+    loop {
+        let line = socket.read().await;
+        if let Ok(event) = serde_json::from_str::<niri_ipc::Event>(&line) {
+            tx.send(MiriEvent::NiriEvent(event)).await.unwrap();
+        }
+    }
+}
 
-    let action_socket = Arc::new(Mutex::new(
-        Socket::connect().expect("Failed to connect to niri_ipc action socket"),
-    ));
+fn handle_command(
+    command: Command,
+    event_state: &EventStreamState,
+    service_state: &mut ServiceState,
+    action_socket: &mut Socket,
+) {
+    command.run(action_socket, event_state, service_state);
+}
 
+fn handle_niri_event(
+    event: Event,
+    event_state: &mut EventStreamState,
+    service_state: &mut ServiceState,
+    action_socket: &mut Socket,
+) {
+    match event {
+        niri_ipc::Event::WindowOpenedOrChanged { ref window } => {
+            if window_is_new(&window.id, event_state) {
+                println!("[EVENT]: window opened");
+
+                let Some(current_mode) = get_focused_workspace_mode(&service_state.workspace_modes, event_state) else {
+                    eprintln!("Could not get focused workspace mode");
+                    event_state.apply(event);
+                    return;
+                };
+
+                println!("current mode {}", current_mode.as_str());
+
+                match current_mode {
+                    Mode::Master => handle_master_window_open(service_state, window, event_state, action_socket),
+                    Mode::Scroll => {
+                        event_state.apply(event);
+                        return;
+                    }
+                }
+            } else {
+                println!("[EVENT]: window changed");
+            }
+        }
+        niri_ipc::Event::WindowClosed { id: _ } => {
+            println!("[EVENT]: window closed");
+            handle_master_window_close(service_state, event_state, action_socket)
+        }
+        niri_ipc::Event::WindowsChanged { windows: _ } => {
+            println!("[EVENT]: windows changed");
+        }
+        _ => {}
+    }
+
+    event_state.apply(event);
+}
+
+#[tokio::main]
+async fn main() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<MiriEvent>(64);
+    let mut action_socket = Socket::connect().expect("Failed to connect to niri_ipc action socket");
+    let mut event_state = EventStreamState::default();
     let config = MiriConfig::load();
+    let mut service_state = ServiceState::new(config);
+    println!("{:?}", service_state.config);
 
-    let event_state = Arc::new(RwLock::new(EventStreamState::default()));
-    let service_state = Arc::new(Mutex::new(ServiceState::default()));
+    tokio::spawn(run_cli_listener(tx.clone()));
+    tokio::spawn(run_niri_event_listener(tx.clone()));
 
-    let event_state_clone = event_state.clone();
-    let service_state_clone = service_state.clone();
-    let action_socket_clone = action_socket.clone();
-
-    thread::spawn(move || {
-        event_loop(event_state_clone, service_state_clone, action_socket_clone, config);
-    });
-
-    // accept cli socket connections on main thread
-    for stream in cli_listener.incoming() {
-        match stream {
-            Ok(client_stream) => {
-                let action_socket = action_socket.clone();
-                let event_state = event_state.clone();
-                let service_state = service_state.clone();
-                thread::spawn(move || {
-                    handle_cli(client_stream, action_socket, event_state, service_state);
-                });
+    while let Some(event) = rx.recv().await {
+        match event {
+            MiriEvent::CliCommand(command) => {
+                handle_command(command, &event_state, &mut service_state, &mut action_socket)
             }
-            Err(e) => {
-                eprintln!("Error accepting connection: {}", e);
+            MiriEvent::NiriEvent(event) => {
+                handle_niri_event(event, &mut event_state, &mut service_state, &mut action_socket)
             }
         }
     }
 }
 
-fn handle_master_window_open(config: &MiriConfig, event_state: &EventStreamState, action_socket: &Arc<Mutex<Socket>>) {
+fn handle_master_window_open(
+    service_state: &ServiceState,
+    new_window: &Window,
+    event_state: &EventStreamState,
+    action_socket: &mut Socket,
+) {
     let Some(windows) = get_windows_on_focused_workspace(event_state) else {
         eprintln!("Could not get windows on focused workspace");
         return;
     };
-    println!("{}", windows.len());
-    let _action_lock = action_socket.lock().expect("Could not hold lock on action socket");
-    if windows.len() == 1 {
-        if config.master_maximize_single_window {}
+    let window_count = windows.len() + 1;
+
+    // FIXME: need to see if this is performant or not
+    let mut all_windows = windows.iter().copied().chain(iter::once(new_window));
+
+    if window_count == 1 {
+        if service_state.config.master_maximize_single_window {
+            println!("only 1!!!!");
+
+            let full_screen_action = Action::SetWindowWidth {
+                id: Some(new_window.id),
+                change: niri_ipc::SizeChange::SetProportion(100.0),
+            };
+            action_socket
+                .send(Request::Action(full_screen_action))
+                .expect("Could not make single window full width")
+                .expect("msg");
+        }
     } else {
-        let Some(_leftmost_window) = windows
-            .iter()
-            .find(|window| window.layout.pos_in_scrolling_layout.map_or(false, |(x, _)| x == 1))
+        let Some(_leftmost_window) =
+            all_windows.find(|&window| window.layout.pos_in_scrolling_layout.map_or(false, |(x, _)| x == 1))
         else {
             eprintln!("Could not get left most window");
             return;
@@ -170,62 +208,37 @@ fn handle_master_window_open(config: &MiriConfig, event_state: &EventStreamState
     }
 }
 
-fn event_loop(
-    event_state: Arc<RwLock<EventStreamState>>,
-    service_state: Arc<Mutex<ServiceState>>,
-    action_socket: Arc<Mutex<Socket>>,
-    config: MiriConfig,
+fn handle_master_window_close(
+    service_state: &ServiceState,
+    event_state: &EventStreamState,
+    action_socket: &mut Socket,
 ) {
-    let mut event_socket = Socket::connect().expect("Failed to connect to niri_ipc event socket");
+    let Some(windows) = get_windows_on_focused_workspace(event_state) else {
+        // TODO: this is really not a great way of handling it. this basically means "we either couldnt get the focused workspace or there were no windows on this workspace"
+        eprintln!("Could not get windows on focused workspace");
+        return;
+    };
 
-    if let Err(e) = event_socket.send(Request::EventStream) {
-        eprintln!("Failed to subscribe to event stream: {e}");
-        std::process::exit(1);
+    let window_count = windows.len() - 1;
+    if window_count != 1 {
+        return;
     }
 
-    let mut read_next = event_socket.read_events();
+    let Some(&last_window) = windows.get(0) else {
+        eprintln!("Getting index 0 on windows when there was 1 window left returned none");
+        return;
+    };
 
-    loop {
-        // FIXME: this is not a good way to handle this lol
-        let event = read_next().expect("Failed to read event");
-        // let socket_path = std::env::var("NIRI_SOCKET").expect("NIRI_SOCKET not set");
-        // println!("{}", socket_path);
-        let mut local_event_state = event_state.write().expect("Could not hold lock on event state");
+    if service_state.config.master_maximize_single_window {
+        println!("only 1!!!!");
 
-        match &event {
-            niri_ipc::Event::WindowOpenedOrChanged { window } => {
-                if window_is_new(&window.id, &local_event_state) {
-                    println!("[EVENT]: window opened");
-                    let local_service_state = service_state.lock().expect("Could not hold lock on service state");
-
-                    let Some(current_mode) =
-                        get_focused_workspace_mode(&local_service_state.workspace_modes, &local_event_state)
-                    else {
-                        eprintln!("Could not get focused workspace mode");
-                        local_event_state.apply(event);
-                        continue;
-                    };
-
-                    match current_mode {
-                        Mode::Master => handle_master_window_open(&config, &local_event_state, &action_socket),
-                        Mode::Scroll => {
-                            local_event_state.apply(event);
-                            continue;
-                        }
-                    }
-                } else {
-                    println!("[EVENT]: window changed");
-                }
-            }
-            niri_ipc::Event::WindowClosed { id: _ } => {
-                println!("[EVENT]: window closed");
-            }
-            niri_ipc::Event::WindowsChanged { windows: _ } => {
-                println!("[EVENT]: windows changed");
-            }
-            _ => {}
-        }
-
-        local_event_state.apply(event);
+        let full_screen_action = Action::SetWindowWidth {
+            id: Some(last_window.id),
+            change: niri_ipc::SizeChange::SetProportion(100.0),
+        };
+        action_socket
+            .send(Request::Action(full_screen_action))
+            .expect("Could not make single window full width")
+            .expect("msg");
     }
 }
