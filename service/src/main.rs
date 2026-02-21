@@ -203,14 +203,41 @@ fn handle_master_window_open(
                 .expect("Could not make single window full width")
                 .expect("msg");
         }
-    } else {
-        let Some(_leftmost_window) =
-            all_windows.find(|&window| window.layout.pos_in_scrolling_layout.map_or(false, |(x, _)| x == 1))
-        else {
-            eprintln!("Could not get left most window");
-            return;
-        };
+        return;
     }
+
+    let Some(leftmost_window) =
+        all_windows.find(|&window| window.layout.pos_in_scrolling_layout.map_or(false, |(x, _)| x == 1))
+    else {
+        eprintln!("Could not get left most window");
+        return;
+    };
+
+    // FIXME: this works, but there are technically 2 focused windows in `all_windows` since it contains the previous state and the new window
+    let move_into_child_column = if leftmost_window.is_focused {
+        Action::ConsumeOrExpelWindowRight {
+            id: Some(new_window.id),
+        }
+    } else {
+        Action::ConsumeOrExpelWindowLeft {
+            id: Some(new_window.id),
+        }
+    };
+
+    action_socket
+        .send(Request::Action(move_into_child_column))
+        .expect("Could move new window into child column")
+        .expect("msg");
+
+    let set_master_proportion = Action::SetWindowWidth {
+        id: Some(leftmost_window.id),
+        change: niri_ipc::SizeChange::SetProportion(service_state.config.master_column_default_width_percentage),
+    };
+
+    action_socket
+        .send(Request::Action(set_master_proportion))
+        .expect("Could set master proportion")
+        .expect("msg");
 }
 
 fn handle_master_window_close(
