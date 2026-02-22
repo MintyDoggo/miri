@@ -12,16 +12,20 @@ pub fn handle_master_window_open(
     event_state: &EventStreamState,
     action_socket: &mut Socket,
 ) {
+    if new_window.is_floating {
+        return;
+    }
+
     let Some(windows) = get_windows_on_focused_workspace(event_state) else {
         eprintln!("Could not get windows on focused workspace");
         return;
     };
-    let window_count = windows.len() + 1;
+    let window_count = windows.iter().filter(|window| !window.is_floating).count();
 
     // FIXME: need to see if this is performant or not
     let mut all_windows = windows.iter().copied().chain(iter::once(new_window));
 
-    if window_count == 1 {
+    if window_count == 0 {
         if service_state.config.master_maximize_single_window {
             println!("only 1!!!!");
 
@@ -71,8 +75,8 @@ pub fn handle_master_window_open(
             return;
         };
 
-        // we can assume window count is itself - 2 since we have already checked if there are more than 1 windows. `-2` because we added the new window to this already. i dont like this line lol
-        let child_column_count = window_count - 2;
+        // we can assume window count is itself - 1 since we have already checked if there are more than 1 windows
+        let child_column_count = window_count - 1;
 
         let focus_action = Action::FocusWindow { id: new_window.id };
         action_socket
