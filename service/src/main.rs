@@ -130,16 +130,15 @@ fn handle_niri_event(
 ) {
     match event {
         niri_ipc::Event::WindowOpenedOrChanged { ref window } => {
+            let Some(current_mode) = get_focused_workspace_mode(&service_state.workspace_modes, event_state) else {
+                eprintln!("Could not get focused workspace mode");
+                event_state.apply(event);
+                return;
+            };
+            println!("{:?}", current_mode);
+
             if window_is_new(&window.id, event_state) {
                 println!("[EVENT]: window opened");
-
-                let Some(current_mode) = get_focused_workspace_mode(&service_state.workspace_modes, event_state) else {
-                    eprintln!("Could not get focused workspace mode");
-                    event_state.apply(event);
-                    return;
-                };
-
-                println!("current mode {}", current_mode.as_str());
 
                 match current_mode {
                     Mode::Master => handle_master_window_open(service_state, window, event_state, action_socket),
@@ -150,6 +149,27 @@ fn handle_niri_event(
                 }
             } else {
                 println!("[EVENT]: window changed");
+                match current_mode {
+                    Mode::Master => {
+                        let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
+                            eprintln!("Could not get focused workspace windows");
+                            event_state.apply(event);
+                            return;
+                        };
+
+                        let window_moved_into_workspace = workspace_windows
+                            .iter()
+                            .find(|known_window| known_window.id == window.id);
+
+                        if window_moved_into_workspace.is_none() {
+                            handle_master_window_open(service_state, window, event_state, action_socket)
+                        }
+                    }
+                    Mode::Scroll => {
+                        event_state.apply(event);
+                        return;
+                    }
+                }
             }
         }
         niri_ipc::Event::WindowClosed { id } => {
