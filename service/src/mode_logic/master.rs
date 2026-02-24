@@ -105,6 +105,18 @@ pub fn handle_master_window_open(
         .send(Request::Action(set_master_proportion))
         .expect("Could set master proportion")
         .expect("msg");
+
+    let set_child_column_width = Action::SetWindowWidth {
+        id: Some(new_window.id),
+        change: niri_ipc::SizeChange::SetProportion(
+            100.0 - service_state.config.master_column_default_width_percentage,
+        ),
+    };
+
+    action_socket
+        .send(Request::Action(set_child_column_width))
+        .expect("Could set master proportion")
+        .expect("msg");
 }
 
 pub fn handle_master_window_close(

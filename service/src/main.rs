@@ -10,6 +10,7 @@ use niri_ipc::{Request, socket::Socket};
 use service::mode_logic::master::{
     force_workspace_windows_into_layout_mode, handle_master_window_close, handle_master_window_open,
 };
+use service::mode_logic::scroll::handle_scroll_window_open;
 use service::niri_ipc_utils::{get_focused_workspace_mode, get_windows_on_focused_workspace, window_is_new};
 use service::service_state::ServiceState;
 
@@ -143,8 +144,7 @@ fn handle_niri_event(
                 match current_mode {
                     Mode::Master => handle_master_window_open(service_state, window, event_state, action_socket),
                     Mode::Scroll => {
-                        event_state.apply(event);
-                        return;
+                        handle_scroll_window_open(service_state, window, action_socket);
                     }
                 }
             } else {
