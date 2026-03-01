@@ -1,32 +1,22 @@
-use std::iter;
-
 use common::{Mode, config::MiriConfig};
-use niri_ipc::{Action, Request, SizeChange, Window, socket::Socket, state::EventStreamState};
+use niri_ipc::{Action, Request, SizeChange, Window, socket::Socket};
 
-use crate::{niri_ipc_utils::get_windows_on_focused_workspace, service_state::ServiceState};
+use crate::service_state::ServiceState;
+
+// TODO: handle action result types
 
 // FIXME: expect in here is really not a good pattern. we don't want this program to crash just because we were unable to make a window fullscreen for example. (or do we?)
-pub fn handle_master_window_open(
-    service_state: &ServiceState,
-    new_window: &Window,
-    event_state: &EventStreamState,
-    action_socket: &mut Socket,
-) {
+pub fn handle_master_window_open(service_state: &mut ServiceState, new_window: &Window, action_socket: &mut Socket) {
     if new_window.is_floating {
         return;
     }
 
-    let Some(windows) = get_windows_on_focused_workspace(event_state) else {
-        eprintln!("Could not get windows on focused workspace");
-        return;
-    };
+    let previous_windows = &service_state.previous_layout.get_focused_workspace().windows;
+    let current_windows = &service_state.current_layout.get_focused_workspace().windows;
 
-    let window_count = windows.iter().filter(|window| !window.is_floating).count();
+    let window_count = current_windows.len();
 
-    // FIXME: need to see if this is performant or not
-    let mut all_windows = windows.iter().copied().chain(iter::once(new_window));
-
-    if window_count == 0 {
+    if window_count == 1 {
         if service_state.config.master_maximize_single_window {
             println!("only 1!!!!");
 
@@ -34,18 +24,18 @@ pub fn handle_master_window_open(
                 id: Some(new_window.id),
                 change: niri_ipc::SizeChange::SetProportion(100.0),
             };
-            action_socket
+            let _ = action_socket
                 .send(Request::Action(full_screen_action))
-                .expect("Could not make single window full width")
-                .expect("msg");
+                .expect("Could not make single window full width");
         }
         return;
     }
 
-    let Some(leftmost_window) =
-        all_windows.find(|&window| window.layout.pos_in_scrolling_layout.map_or(false, |(x, _)| x == 1))
+    let Some(leftmost_window) = previous_windows
+        .iter()
+        .find(|&window| window.position.0 == 1 && window.position.1 == 1)
     else {
-        eprintln!("Could not get left most window");
+        eprintln!("Could not get left most window of focused workspace");
         return;
     };
 
@@ -59,40 +49,33 @@ pub fn handle_master_window_open(
         }
     };
 
-    action_socket
+    let _ = action_socket
         .send(Request::Action(move_into_child_column))
-        .expect("Could move new window into child column")
-        .expect("msg");
+        .expect("Could move new window into child column");
 
     // if we are focusing the child column, move the new window directly under the focused window
     if !leftmost_window.is_focused {
-        let Some(focused_window) = windows.iter().find(|w| w.is_focused) else {
+        let Some(focused_window) = previous_windows.iter().find(|window| window.is_focused) else {
             eprintln!("Could not find focused window");
             return;
         };
 
-        let Some((_, focused_y)) = focused_window.layout.pos_in_scrolling_layout else {
-            eprintln!("Focused window has no scrolling layout position");
-            return;
-        };
-
-        // we can assume window count is itself - 1 since we have already checked if there are more than 1 windows
-        let child_column_count = window_count - 1;
+        let previous_window_count = window_count - 1;
+        let master_window_count = 1;
+        let child_column_count = previous_window_count - master_window_count;
 
         let focus_action = Action::FocusWindow { id: new_window.id };
-        action_socket
+        let _ = action_socket
             .send(Request::Action(focus_action))
-            .expect("Could not focus new window")
-            .expect("msg");
+            .expect("Could not focus new window");
 
         // example: 4 windows in child column, focused window is at position 2 (1 based indexing). 4 - 2 = 2, move window up twice to be directly under the focused window
-        let moves_needed = child_column_count.saturating_sub(focused_y);
+        let moves_needed = child_column_count.saturating_sub(focused_window.position.1);
 
         for _ in 0..moves_needed {
-            action_socket
+            let _ = action_socket
                 .send(Request::Action(Action::MoveWindowUp {}))
-                .expect("Could not move window up")
-                .expect("msg");
+                .expect("Could not move window up");
         }
     }
 
@@ -101,10 +84,9 @@ pub fn handle_master_window_open(
         change: niri_ipc::SizeChange::SetProportion(service_state.config.master_column_default_width_percentage),
     };
 
-    action_socket
+    let _ = action_socket
         .send(Request::Action(set_master_proportion))
-        .expect("Could set master proportion")
-        .expect("msg");
+        .expect("Could set master proportion");
 
     let set_child_column_width = Action::SetWindowWidth {
         id: Some(new_window.id),
@@ -113,66 +95,45 @@ pub fn handle_master_window_open(
         ),
     };
 
-    action_socket
+    let _ = action_socket
         .send(Request::Action(set_child_column_width))
-        .expect("Could set master proportion")
-        .expect("msg");
+        .expect("Could set master proportion");
 }
 
-pub fn handle_master_window_close(
-    closed_id: u64,
-    service_state: &ServiceState,
-    event_state: &EventStreamState,
-    action_socket: &mut Socket,
-) {
-    let Some(windows) = get_windows_on_focused_workspace(event_state) else {
-        // TODO: this is really not a great way of handling it. this basically means "we either couldnt get the focused workspace or there were no windows on this workspace"
-        eprintln!("Could not get windows on focused workspace");
+pub fn handle_master_window_close(_closed_id: u64, service_state: &mut ServiceState, action_socket: &mut Socket) {
+    let current_windows = &service_state.current_layout.get_focused_workspace().windows;
+    if current_windows.len() <= 0 {
         return;
     };
 
-    let window_count = windows.len();
-    if window_count == 2 {
-        let Some(&left_window) = windows
-            .iter()
-            .find(|window| window.layout.pos_in_scrolling_layout.is_some_and(|(x, _)| x == 1))
-        else {
+    if current_windows.len() == 1 {
+        println!("only 1!!!!");
+        let Some(last_window) = current_windows.first() else {
             eprintln!("Getting left-most window returned none");
             return;
         };
 
         if service_state.config.master_maximize_single_window {
-            println!("only 1!!!!");
-
             let full_screen_action = Action::SetWindowWidth {
-                id: Some(left_window.id),
+                id: Some(last_window.id),
                 change: niri_ipc::SizeChange::SetProportion(100.0),
             };
-            action_socket
+            let _ = action_socket
                 .send(Request::Action(full_screen_action))
-                .expect("Could not make single window full width")
-                .expect("msg");
+                .expect("Could not make single window full width");
         }
     }
 
-    if window_count > 2 {
-        let Some(&left_window) = windows.iter().find(|window| {
-            window
-                .layout
-                .pos_in_scrolling_layout
-                .is_some_and(|(x, _)| x == 1 && window.id == closed_id)
-        }) else {
-            eprintln!("Getting left-most window returned none");
-            return;
-        };
+    if current_windows.len() >= 2 {
+        // this is a workaround: basically, sometimes previous_state can contain 2 windows on the same workspace with postion `(1, 1)`.
+        // When this happens, its impossible to determine if the window that was closed was the master window (the window that has position 1, 1. There are 2)
+        // note that this is likely not a problem with my code, this is just what happens when you use `event_state.apply(event.clone())` before matching events.
+        // the workaround I use is to check how many columns there are in this workspace. we can do this with the following line of code
+        // if there is a window with an x position of 2 or greater, it means that the master window was NOT closed.
+        let master_closed: bool = !current_windows.iter().find(|window| window.position.0 >= 2).is_some();
 
-        if left_window.id == closed_id {
-            let Some(&top_child_window) = windows.iter().find(|window| {
-                window
-                    .layout
-                    .pos_in_scrolling_layout
-                    .is_some_and(|(_, y)| y == 1 && window.id != closed_id)
-            }) else {
+        if master_closed {
+            let Some(top_child_window) = current_windows.iter().find(|&window| window.position.1 == 1) else {
                 eprintln!("Could not find top window in child column");
                 return;
             };
@@ -180,16 +141,14 @@ pub fn handle_master_window_close(
             let expel_action = Action::ConsumeOrExpelWindowLeft {
                 id: Some(top_child_window.id),
             };
-            action_socket
+            let _ = action_socket
                 .send(Request::Action(expel_action))
-                .expect("Could not expel child window left")
-                .expect("msg");
+                .expect("Could not expel child window left");
 
             let focus_action = Action::FocusColumnLeft {};
-            action_socket
+            let _ = action_socket
                 .send(Request::Action(focus_action))
-                .expect("Could focus left column")
-                .expect("msg");
+                .expect("Could focus left column");
         }
     }
 }

@@ -65,11 +65,11 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn cycle(self) -> Mode {
-        match self {
+    pub fn cycle(&mut self) {
+        *self = match *self {
             Mode::Scroll => Mode::Master,
             Mode::Master => Mode::Scroll,
-        }
+        };
     }
 
     pub fn as_str(&self) -> &'static str {

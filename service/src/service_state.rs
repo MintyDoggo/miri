@@ -2,81 +2,109 @@ use common::{Mode, config::MiriConfig};
 use niri_ipc::state::EventStreamState;
 use std::collections::HashMap;
 
-use crate::niri_ipc_utils::get_focused_workspace;
-
 pub struct ServiceState {
-    pub workspace_modes: WorkspaceModes,
+    pub previous_layout: Layout,
+    pub current_layout: Layout,
     pub config: MiriConfig,
 }
 
 impl ServiceState {
     pub fn new(config: MiriConfig) -> Self {
         ServiceState {
-            workspace_modes: WorkspaceModes::new(config.default_workspace_mode),
+            previous_layout: Layout::new(config.default_workspace_mode),
+            current_layout: Layout::new(config.default_workspace_mode),
             config,
         }
     }
 }
-
-pub struct WorkspaceModes {
+#[derive(Debug)]
+pub struct Layout {
     // output name and index used as key
     // FIXME: solve case of output name being the same
-    modes: HashMap<(String, u8), Mode>,
-    default_mode: Mode,
+    pub workspaces: HashMap<(String, u8), MiriWorkspace>,
+    pub default_mode: Mode,
 }
 
-impl WorkspaceModes {
+impl Layout {
     pub fn new(default_mode: Mode) -> Self {
-        WorkspaceModes {
-            modes: HashMap::new(),
+        Layout {
+            workspaces: HashMap::new(),
             default_mode,
         }
     }
 
-    pub fn get_mode(&self, output: &str, index: u8) -> Mode {
-        let Some(current_mode) = self.modes.get(&(output.to_string(), index)) else {
-            return self.default_mode;
-        };
-        *current_mode
+    pub fn get_focused_workspace(&mut self) -> &mut MiriWorkspace {
+        self.workspaces
+            .values_mut()
+            .find(|workspace| workspace.focused)
+            .expect("Could not get focused workspace")
     }
 
-    pub fn set_mode(&mut self, output: &str, index: u8, mode: Mode) {
-        self.modes.insert((output.to_string(), index), mode);
+    pub fn set_focused_workspace_mode(&mut self, mode: Mode) {
+        self.get_focused_workspace().mode = mode;
     }
+}
 
-    pub fn set_mode_on_focused_workspace(&mut self, event_state: &EventStreamState, mode: Mode) {
-        let Some(focused_workspace) = get_focused_workspace(event_state) else {
-            eprintln!("Failed to get focused workspace");
-            return;
-        };
+#[derive(Debug)]
+pub struct MiriWorkspace {
+    pub focused: bool,
+    pub mode: Mode,
+    pub windows: Vec<MiriWindow>,
+}
 
-        let Some(output) = focused_workspace.output.as_ref() else {
-            eprintln!("Focused workspace has no output");
-            return;
-        };
-
-        self.set_mode(output, focused_workspace.idx, mode);
+impl MiriWorkspace {
+    pub fn get_focused_window(&self) -> &MiriWindow {
+        self.windows
+            .iter()
+            .find(|window| window.is_focused)
+            .expect("Could not get focused window")
     }
+}
 
-    pub fn cycle_mode(&mut self, output: &str, index: u8) -> Mode {
-        let current_mode = self.get_mode(output, index);
+#[derive(Debug)]
+pub struct MiriWindow {
+    pub id: u64,
+    pub position: (usize, usize),
+    pub is_focused: bool,
+    pub is_floating: bool,
+}
 
-        let new_mode = current_mode.cycle();
-        self.set_mode(output, index, new_mode);
-        new_mode
-    }
+pub fn copy_event_state_to_layout(event_state: &EventStreamState, layout: &mut Layout) {
+    layout.workspaces.clear();
+    for workspace in event_state.workspaces.workspaces.values() {
+        let output_name = workspace
+            .output
+            .as_ref()
+            .expect("Could not get workspace output")
+            .clone();
+        let key = (output_name, workspace.idx);
 
-    pub fn cycle_mode_on_focused_workspace(&mut self, event_state: &EventStreamState) -> Option<Mode> {
-        let Some(focused_workspace) = get_focused_workspace(event_state) else {
-            eprintln!("Failed to get focused workspace");
-            return None;
+        let windows: Vec<MiriWindow> = event_state
+            .windows
+            .windows
+            .values()
+            .filter(|window| window.workspace_id == Some(workspace.id))
+            .map(|window| {
+                let position = window
+                    .layout
+                    .pos_in_scrolling_layout
+                    .expect("Could not get position in scrolling layout");
+
+                MiriWindow {
+                    id: window.id,
+                    position,
+                    is_focused: window.is_focused,
+                    is_floating: window.is_floating,
+                }
+            })
+            .collect();
+
+        let miri_workspace = MiriWorkspace {
+            focused: workspace.is_focused,
+            mode: layout.default_mode, // FIXME: get the actual mode here
+            windows,
         };
 
-        let Some(output) = focused_workspace.output.as_ref() else {
-            eprintln!("Focused workspace has no output");
-            return None;
-        };
-
-        Some(self.cycle_mode(output, focused_workspace.idx))
+        layout.workspaces.insert(key, miri_workspace);
     }
 }

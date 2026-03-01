@@ -11,8 +11,8 @@ use service::mode_logic::master::{
     force_workspace_windows_into_layout_mode, handle_master_window_close, handle_master_window_open,
 };
 use service::mode_logic::scroll::handle_scroll_window_open;
-use service::niri_ipc_utils::{get_focused_workspace_mode, get_windows_on_focused_workspace, window_is_new};
-use service::service_state::ServiceState;
+use service::niri_ipc_utils::{get_windows_on_focused_workspace, window_is_new};
+use service::service_state::{ServiceState, copy_event_state_to_layout};
 
 use tokio::sync::mpsc::Sender;
 
@@ -34,14 +34,8 @@ impl CliRunner for MiriAction {
         match self {
             MiriAction::CycleFocusedWorkspaceMode => {
                 println!("[ACTION]: CycleFocusedWorkspaceMode");
-
-                let Some(new_mode) = service_state
-                    .workspace_modes
-                    .cycle_mode_on_focused_workspace(&event_state)
-                else {
-                    eprintln!("Could not get new mode when cycling focused workspace mode");
-                    return;
-                };
+                let focused_workspace = service_state.current_layout.get_focused_workspace();
+                focused_workspace.mode.cycle();
                 let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
                     eprintln!("Could not get workspace windows");
                     return;
@@ -50,14 +44,12 @@ impl CliRunner for MiriAction {
                     workspace_windows,
                     action_socket,
                     &service_state.config,
-                    new_mode,
+                    focused_workspace.mode,
                 )
             }
             MiriAction::SetFocusedWorkspaceMode { mode } => {
                 println!("[ACTION]: SetFocusedWorkspaceMode to {:?}", mode);
-                service_state
-                    .workspace_modes
-                    .set_mode_on_focused_workspace(event_state, *mode);
+                service_state.current_layout.set_focused_workspace_mode(*mode);
 
                 let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
                     eprintln!("Could not get workspace windows");
@@ -129,20 +121,23 @@ fn handle_niri_event(
     service_state: &mut ServiceState,
     action_socket: &mut Socket,
 ) {
+    std::mem::swap(&mut service_state.previous_layout, &mut service_state.current_layout);
+    // TODO: find a way to not have to clone the event
+    event_state.apply(event.clone());
+    // FIXME: dont make this pass by reference, just have it move the value out
+    copy_event_state_to_layout(event_state, &mut service_state.current_layout);
+
     match event {
         niri_ipc::Event::WindowOpenedOrChanged { ref window } => {
-            let Some(current_mode) = get_focused_workspace_mode(&service_state.workspace_modes, event_state) else {
-                eprintln!("Could not get focused workspace mode");
-                event_state.apply(event);
-                return;
-            };
-            println!("{:?}", current_mode);
+            let workspace = service_state.current_layout.get_focused_workspace();
+            let current_mode = workspace.mode;
+            println!("[DEBUG]: mode: {}", current_mode.as_str());
 
-            if window_is_new(&window.id, event_state) {
+            if window_is_new(&window.id, &mut service_state.previous_layout) {
                 println!("[EVENT]: window opened");
 
                 match current_mode {
-                    Mode::Master => handle_master_window_open(service_state, window, event_state, action_socket),
+                    Mode::Master => handle_master_window_open(service_state, window, action_socket),
                     Mode::Scroll => {
                         handle_scroll_window_open(service_state, window, action_socket);
                     }
@@ -150,39 +145,34 @@ fn handle_niri_event(
             } else {
                 println!("[EVENT]: window changed");
                 match current_mode {
-                    Mode::Master => {
-                        let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
-                            eprintln!("Could not get focused workspace windows");
-                            event_state.apply(event);
-                            return;
-                        };
+                    Mode::Master => 'early: {
+                        // let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
+                        //     eprintln!("Could not get focused workspace windows");
+                        //     break 'early;
+                        // };
 
-                        let window_moved_into_workspace = workspace_windows
-                            .iter()
-                            .find(|known_window| known_window.id == window.id);
+                        // let window_moved_into_workspace = workspace_windows
+                        //     .iter()
+                        //     .find(|known_window| known_window.id == window.id);
 
-                        if window_moved_into_workspace.is_none() {
-                            handle_master_window_open(service_state, window, event_state, action_socket)
-                        }
+                        // if window_moved_into_workspace.is_none() {
+                        //     handle_master_window_open(service_state, window, event_state, action_socket)
+                        // }
+                        break 'early;
                     }
-                    Mode::Scroll => {
-                        event_state.apply(event);
-                        return;
+                    Mode::Scroll => 'early: {
+                        break 'early;
                     }
                 }
             }
         }
         niri_ipc::Event::WindowClosed { id } => {
             println!("[EVENT]: window closed");
-            let Some(current_mode) = get_focused_workspace_mode(&service_state.workspace_modes, event_state) else {
-                eprintln!("Could not get focused workspace mode");
-                event_state.apply(event);
-                return;
-            };
+            let workspace = service_state.current_layout.get_focused_workspace();
+            let current_mode = workspace.mode;
             match current_mode {
-                Mode::Master => handle_master_window_close(id, service_state, event_state, action_socket),
+                Mode::Master => handle_master_window_close(id, service_state, action_socket),
                 Mode::Scroll => {
-                    event_state.apply(event);
                     return;
                 }
             }
@@ -192,8 +182,6 @@ fn handle_niri_event(
         }
         _ => {}
     }
-
-    event_state.apply(event);
 }
 
 #[tokio::main]
