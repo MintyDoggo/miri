@@ -1,10 +1,15 @@
 use niri_ipc::{Window, Workspace, state::EventStreamState};
 
-use crate::service_state::Layout;
+use crate::service_state::ServiceState;
 
-pub fn window_is_new(window_id: &u64, previous_layout: &mut Layout) -> bool {
-    let workspace = previous_layout.get_focused_workspace();
-    match workspace.windows.iter().find(|window| window.id == *window_id) {
+pub fn window_is_new(window_id: &u64, service_state: &mut ServiceState) -> bool {
+    let previous_workspace = service_state.previous_layout.get_focused_workspace();
+    let current_workspace = service_state.current_layout.get_focused_workspace();
+    if previous_workspace.id != current_workspace.id {
+        return false;
+    }
+
+    match previous_workspace.windows.iter().find(|window| window.id == *window_id) {
         Some(_) => return false,
         None => return true,
     };

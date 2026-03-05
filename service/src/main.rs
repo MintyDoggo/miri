@@ -34,7 +34,7 @@ impl CliRunner for MiriAction {
         match self {
             MiriAction::CycleFocusedWorkspaceMode => {
                 println!("[ACTION]: CycleFocusedWorkspaceMode");
-                let focused_workspace = service_state.current_layout.get_focused_workspace();
+                let focused_workspace = service_state.current_layout.get_focused_workspace_mut();
                 focused_workspace.mode.cycle();
                 let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
                     eprintln!("Could not get workspace windows");
@@ -131,9 +131,8 @@ fn handle_niri_event(
         niri_ipc::Event::WindowOpenedOrChanged { ref window } => {
             let workspace = service_state.current_layout.get_focused_workspace();
             let current_mode = workspace.mode;
-            println!("[DEBUG]: mode: {}", current_mode.as_str());
 
-            if window_is_new(&window.id, &mut service_state.previous_layout) {
+            if window_is_new(&window.id, service_state) {
                 println!("[EVENT]: window opened");
 
                 match current_mode {
@@ -146,18 +145,12 @@ fn handle_niri_event(
                 println!("[EVENT]: window changed");
                 match current_mode {
                     Mode::Master => 'early: {
-                        // let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
-                        //     eprintln!("Could not get focused workspace windows");
-                        //     break 'early;
-                        // };
+                        let window_moved_into_workspace = service_state.previous_layout.get_focused_workspace().id
+                            != service_state.current_layout.get_focused_workspace().id;
 
-                        // let window_moved_into_workspace = workspace_windows
-                        //     .iter()
-                        //     .find(|known_window| known_window.id == window.id);
-
-                        // if window_moved_into_workspace.is_none() {
-                        //     handle_master_window_open(service_state, window, event_state, action_socket)
-                        // }
+                        if window_moved_into_workspace {
+                            handle_master_window_open(service_state, window, action_socket)
+                        }
                         break 'early;
                     }
                     Mode::Scroll => 'early: {

@@ -1,9 +1,50 @@
 use common::{Mode, config::MiriConfig};
 use niri_ipc::{Action, Request, SizeChange, Window, socket::Socket};
 
-use crate::service_state::ServiceState;
+use crate::service_state::{MiriWindow, ServiceState};
 
 // TODO: handle action result types
+
+fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socket: &mut Socket) {
+    if config.master_maximize_single_window {
+        println!("[DEBUG]: handling single window: {}", single_window_id);
+        let full_screen_action = Action::SetWindowWidth {
+            id: Some(single_window_id),
+            change: niri_ipc::SizeChange::SetProportion(100.0),
+        };
+        if let Err(e) = action_socket
+            .send(Request::Action(full_screen_action))
+            .expect("Could not make single window full width")
+        {
+            eprint!("{e}");
+        }
+    }
+}
+
+fn move_window_under_focused_window(
+    focused_window: &MiriWindow,
+    window_count: usize,
+    action_socket: &mut Socket,
+    window_to_move: &Window,
+) {
+    let previous_window_count = window_count - 1;
+    let master_window_count = 1;
+    let child_column_count = previous_window_count - master_window_count;
+
+    let focus_action = Action::FocusWindow { id: window_to_move.id };
+    let _ = action_socket
+        .send(Request::Action(focus_action))
+        .expect("Could not focus new window");
+
+    // example: 4 windows in child column, focused window is at position 2 (1 based indexing). 4 - 2 = 2, move window up twice to be directly under the focused window
+    let moves_needed = child_column_count.saturating_sub(focused_window.position.1);
+
+    for _ in 0..moves_needed {
+        let _ = action_socket
+            .send(Request::Action(Action::MoveWindowUp {}))
+            .expect("Could not move window up");
+    }
+}
 
 // FIXME: expect in here is really not a good pattern. we don't want this program to crash just because we were unable to make a window fullscreen for example. (or do we?)
 pub fn handle_master_window_open(service_state: &mut ServiceState, new_window: &Window, action_socket: &mut Socket) {
@@ -11,82 +52,83 @@ pub fn handle_master_window_open(service_state: &mut ServiceState, new_window: &
         return;
     }
 
-    let previous_windows = &service_state.previous_layout.get_focused_workspace().windows;
-    let current_windows = &service_state.current_layout.get_focused_workspace().windows;
+    let previous_focused_workspace = service_state.previous_layout.get_focused_workspace();
+    let current_focused_workspace = service_state.current_layout.get_focused_workspace();
+
+    let workspace_changed = previous_focused_workspace.id != current_focused_workspace.id;
+    let current_windows = &current_focused_workspace.windows;
+
+    if workspace_changed {
+        println!("[DEBUG]: CHANGE handling previous workspace");
+        // TODO: move all this in its own function call `handle_from_workspace` or something
+        let from_workspace = service_state
+            .current_layout
+            .workspaces
+            .get(&(
+                previous_focused_workspace.output.clone(),
+                previous_focused_workspace.index,
+            ))
+            .expect("Could not get the from workspace for workspace changed");
+
+        if from_workspace.windows.len() == 1 {
+            let single_window = from_workspace
+                .windows
+                .first()
+                .expect("Could not get the first window from the from workspace");
+            println!("[DEBUG]: single window");
+
+            handle_single_window(&service_state.config, single_window.id, action_socket);
+        }
+    }
 
     let window_count = current_windows.len();
 
     if window_count == 1 {
-        if service_state.config.master_maximize_single_window {
-            println!("only 1!!!!");
-
-            let full_screen_action = Action::SetWindowWidth {
-                id: Some(new_window.id),
-                change: niri_ipc::SizeChange::SetProportion(100.0),
-            };
-            let _ = action_socket
-                .send(Request::Action(full_screen_action))
-                .expect("Could not make single window full width");
-        }
+        println!("only 1!!!!");
+        handle_single_window(&service_state.config, new_window.id, action_socket);
         return;
     }
 
-    let Some(leftmost_window) = previous_windows
+    let Some(previous_master_window) = current_windows
         .iter()
         .find(|&window| window.position.0 == 1 && window.position.1 == 1)
     else {
         eprintln!("Could not get left most window of focused workspace");
         return;
     };
+    let (window_x, _) = new_window
+        .layout
+        .pos_in_scrolling_layout
+        .expect("Could not get position in scrolling layout");
 
-    let move_into_child_column = if leftmost_window.is_focused {
-        Action::ConsumeOrExpelWindowRight {
+    let move_into_child_column = match window_x {
+        2 => Action::ConsumeOrExpelWindowRight {
             id: Some(new_window.id),
-        }
-    } else {
-        Action::ConsumeOrExpelWindowLeft {
+        },
+        3.. => Action::ConsumeOrExpelWindowLeft {
             id: Some(new_window.id),
+        },
+        _ => {
+            eprintln!(
+                "Window X position was not valid when trying to adjust new window. x position was {}",
+                window_x
+            );
+            return;
         }
     };
 
     let _ = action_socket
         .send(Request::Action(move_into_child_column))
-        .expect("Could move new window into child column");
+        .expect("Could not move new window into child column");
 
-    // if we are focusing the child column, move the new window directly under the focused window
-    if !leftmost_window.is_focused {
-        let Some(focused_window) = previous_windows.iter().find(|window| window.is_focused) else {
-            eprintln!("Could not find focused window");
-            return;
-        };
+    // if the new window went to the right of the child column, move it under our focused window. only do this for window open events
+    if window_x >= 3 && !workspace_changed {
+        let previous_focused_window = previous_focused_workspace
+            .get_focused_window()
+            .expect("Could not get focused window of previous focused workspace");
 
-        let previous_window_count = window_count - 1;
-        let master_window_count = 1;
-        let child_column_count = previous_window_count - master_window_count;
-
-        let focus_action = Action::FocusWindow { id: new_window.id };
-        let _ = action_socket
-            .send(Request::Action(focus_action))
-            .expect("Could not focus new window");
-
-        // example: 4 windows in child column, focused window is at position 2 (1 based indexing). 4 - 2 = 2, move window up twice to be directly under the focused window
-        let moves_needed = child_column_count.saturating_sub(focused_window.position.1);
-
-        for _ in 0..moves_needed {
-            let _ = action_socket
-                .send(Request::Action(Action::MoveWindowUp {}))
-                .expect("Could not move window up");
-        }
+        move_window_under_focused_window(previous_focused_window, window_count, action_socket, new_window);
     }
-
-    let set_master_proportion = Action::SetWindowWidth {
-        id: Some(leftmost_window.id),
-        change: niri_ipc::SizeChange::SetProportion(service_state.config.master_column_default_width_percentage),
-    };
-
-    let _ = action_socket
-        .send(Request::Action(set_master_proportion))
-        .expect("Could set master proportion");
 
     let set_child_column_width = Action::SetWindowWidth {
         id: Some(new_window.id),
@@ -97,6 +139,16 @@ pub fn handle_master_window_open(service_state: &mut ServiceState, new_window: &
 
     let _ = action_socket
         .send(Request::Action(set_child_column_width))
+        .expect("Could not set child proportion");
+
+    let set_master_proportion = Action::SetWindowWidth {
+        id: Some(previous_master_window.id),
+        change: niri_ipc::SizeChange::SetProportion(service_state.config.master_column_default_width_percentage),
+    };
+
+    println!("{:?}", set_master_proportion);
+    let _ = action_socket
+        .send(Request::Action(set_master_proportion))
         .expect("Could set master proportion");
 }
 
