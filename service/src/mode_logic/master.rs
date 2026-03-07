@@ -6,21 +6,6 @@ use crate::service_state::{MiriWindow, MiriWorkspace};
 // TODO: handle action result types in this file
 // TODO: since these functions are now more general, move them somewhere else
 
-// FIXME: this needs to be done in a batching way before use. I don't think theres a reliable way to do this without sleeping the thread (which i refuse to do).
-fn right_align(focused_window: &MiriWindow, action_socket: &mut Socket) {
-    let focus_first_column = Action::FocusColumnFirst {};
-    if let Err(e) = action_socket.send(Request::Action(focus_first_column)) {
-        eprint!("{e}");
-        return;
-    }
-
-    let restore_focus = Action::FocusWindow { id: focused_window.id };
-    if let Err(e) = action_socket.send(Request::Action(restore_focus)) {
-        eprint!("{e}");
-        return;
-    }
-}
-
 fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socket: &mut Socket) {
     if config.master_maximize_single_window {
         println!("[DEBUG]: handling single window: {}", single_window_id);
