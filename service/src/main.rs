@@ -147,15 +147,6 @@ fn handle_niri_event(
                 &service_state.current_layout,
             ) {
                 println!("[EVENT]: window opened");
-                // FIXME: we need this function to be handled differently.
-                // we need it to only take in the previous state and current state of the workspace we are interested in.
-                // then fix it accordingly. this will allow me to do something more general like:
-                // "handle master window change on workspace".
-                // So there will be no distinction between window open or window close.
-                // I can't really put into words why we need this but it will be better.
-                // The main issue with this is the "window" and "window id" we receive from the niri event listener
-                // will likely not be used anymore
-
                 handle_workspace_gain_window(
                     current_workspace,
                     window,
