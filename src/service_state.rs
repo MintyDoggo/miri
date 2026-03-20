@@ -67,6 +67,21 @@ impl MiriWorkspace {
     pub fn get_focused_window(&self) -> Option<&MiriWindow> {
         self.windows.iter().find(|window| window.is_focused)
     }
+
+    // crazy bit shift function to find the number of columns in O(N) time
+    pub fn get_workspace_column_count(&self) -> i32 {
+        let mut seen_columns = 0u64;
+        let mut column_count = 0;
+        for window in self.windows.iter() {
+            debug_assert!(window.position.0 < 64, "column index exceeds bitmask capacity");
+            let column_bit = 1u64 << window.position.0;
+            if seen_columns & column_bit == 0 {
+                seen_columns |= column_bit;
+                column_count += 1;
+            }
+        }
+        column_count
+    }
 }
 
 #[derive(Debug)]

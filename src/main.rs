@@ -1,7 +1,6 @@
 use clap::Parser;
 use miri::{
-    ipc::{Args, Command, MiriAction, MiriGet, MiriServiceCommand},
-    miri_commands::send_command_to_miri_service,
+    ipc::{Args, Command, MiriAction, MiriGet, MiriServiceCommand, send_command_to_miri_service},
     service::main_service,
 };
 use niri_ipc::{Request, socket::Socket};

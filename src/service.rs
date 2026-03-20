@@ -6,7 +6,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::config::MiriConfig;
 use crate::ipc::{Command, IPCMessage, IPCMessageContainer, MiriAction, MiriGet, Mode};
-use crate::master::{
+use crate::layout::handler::{
     force_workspace_windows_into_layout_mode, handle_workspace_gain_window, handle_workspace_lose_window,
 };
 use crate::miri_socket::MiriListener;
