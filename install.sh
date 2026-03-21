@@ -8,7 +8,7 @@ REPO="MintyDoggo/miri"
 INSTALL_DIR="$HOME/.local/bin"
 SERVICE_DIR="$HOME/.config/systemd/user"
 WANTS_DIR="$SERVICE_DIR/niri.service.wants"
-BINARY_ASSET="PLACEHOLDER_BINARY_NAME"
+BINARY_ASSET="miri-x86_64"
 SERVICE_ASSET="miri.service"
 
 # --- helpers ---
