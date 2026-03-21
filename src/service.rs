@@ -119,17 +119,27 @@ fn handle_niri_event(
     std::mem::swap(&mut service_state.previous_layout, &mut service_state.current_layout);
     // TODO: find a way to not have to clone the event
     event_state.apply(event.clone());
-
     copy_event_state_to_layout(
         event_state,
         &service_state.previous_layout,
         &mut service_state.current_layout,
     );
 
+    // make workspaces that already have windows default to scroll mode
+    // this prevents scenarios where if miri.service crashes/restarts, the state doesnt remain broken
+    // FIXME: we will obviously want this to never happen but its a good fix for now
+    if !service_state.first_niri_event_received {
+        // although this isn't the first event, its the first event where windows get assigned to workspaces (which is what we care about)
+        if let niri_ipc::Event::WindowsChanged { .. } = event {
+            service_state.first_niri_event_received = true;
+            service_state.initialize_workspace_modes();
+        }
+    }
+
     match event {
         niri_ipc::Event::WindowOpenedOrChanged { ref window } => {
             if window.workspace_id.is_none() {
-                // this means its a window we are dragging
+                // TODO: figure out how to handle this. this means its a window we are dragging (and possibly other cases)
                 return;
             }
 

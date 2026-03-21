@@ -7,6 +7,7 @@ pub struct ServiceState {
     pub previous_layout: Layout,
     pub current_layout: Layout,
     pub config: MiriConfig,
+    pub first_niri_event_received: bool,
 }
 
 impl ServiceState {
@@ -15,6 +16,7 @@ impl ServiceState {
             previous_layout: Layout::new(config.default_workspace_mode),
             current_layout: Layout::new(config.default_workspace_mode),
             config,
+            first_niri_event_received: false,
         }
     }
 
@@ -38,6 +40,24 @@ impl ServiceState {
             Some(_) => return false,
             None => return true,
         };
+    }
+
+    // sets workspace layout to scroll if there are already windows on the workspace. meant to be used on service start/restart
+    pub fn initialize_workspace_modes(&mut self) {
+        println!("{:?}", self.previous_layout);
+        println!("{:?}", self.current_layout);
+        for workspace in self.previous_layout.workspaces.values_mut() {
+            if workspace.windows.len() > 0 {
+                workspace.mode = Mode::Scroll;
+                println!("PREV {:?}", workspace);
+            }
+        }
+        for workspace in self.current_layout.workspaces.values_mut() {
+            if workspace.windows.len() > 0 {
+                workspace.mode = Mode::Scroll;
+                println!("CURR {:?}", workspace);
+            }
+        }
     }
 }
 #[derive(Debug)]
