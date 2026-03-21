@@ -10,26 +10,68 @@ impl MiriDefaults {
     const DEFAULT_WORKSPACE_MODE: Mode = Mode::Master;
     const MASTER_WIDTH_PERCENTAGE: f64 = 50.0;
     const MASTER_MAXIMIZE_SINGLE_WINDOW: bool = true;
-    const MAINTAIN_FOCUS_ON_NEW_WINDOW: bool = false;
+    const SCROLL_MAINTAIN_FOCUS_ON_NEW_WINDOW: bool = false;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GlobalConfig {
+    #[serde(deserialize_with = "deserialize_mode")]
+    pub default_workspace_mode: Mode,
+}
+
+impl Default for GlobalConfig {
+    fn default() -> Self {
+        Self {
+            default_workspace_mode: MiriDefaults::DEFAULT_WORKSPACE_MODE,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MasterConfig {
+    pub column_width_percentage: f64,
+    pub maximize_single_window: bool,
+}
+
+impl Default for MasterConfig {
+    fn default() -> Self {
+        Self {
+            column_width_percentage: MiriDefaults::MASTER_WIDTH_PERCENTAGE,
+            maximize_single_window: MiriDefaults::MASTER_MAXIMIZE_SINGLE_WINDOW,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ScrollConfig {
+    pub maintain_focus_on_new_window: bool,
+}
+
+impl Default for ScrollConfig {
+    fn default() -> Self {
+        Self {
+            maintain_focus_on_new_window: MiriDefaults::SCROLL_MAINTAIN_FOCUS_ON_NEW_WINDOW,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MiriConfig {
-    #[serde(deserialize_with = "deserialize_mode")]
-    pub default_workspace_mode: Mode,
-    pub master_column_default_width_percentage: f64,
-    pub master_maximize_single_window: bool,
-    pub maintain_focus_on_new_window: bool,
+    pub global: GlobalConfig,
+    pub master: MasterConfig,
+    pub scroll: ScrollConfig,
 }
 
 impl Default for MiriConfig {
     fn default() -> Self {
         Self {
-            default_workspace_mode: MiriDefaults::DEFAULT_WORKSPACE_MODE,
-            master_column_default_width_percentage: MiriDefaults::MASTER_WIDTH_PERCENTAGE,
-            master_maximize_single_window: MiriDefaults::MASTER_MAXIMIZE_SINGLE_WINDOW,
-            maintain_focus_on_new_window: MiriDefaults::MAINTAIN_FOCUS_ON_NEW_WINDOW,
+            global: GlobalConfig::default(),
+            master: MasterConfig::default(),
+            scroll: ScrollConfig::default(),
         }
     }
 }

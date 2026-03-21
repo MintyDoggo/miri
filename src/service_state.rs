@@ -13,8 +13,8 @@ pub struct ServiceState {
 impl ServiceState {
     pub fn new(config: MiriConfig) -> Self {
         ServiceState {
-            previous_layout: Layout::new(config.default_workspace_mode),
-            current_layout: Layout::new(config.default_workspace_mode),
+            previous_layout: Layout::new(config.global.default_workspace_mode),
+            current_layout: Layout::new(config.global.default_workspace_mode),
             config,
             first_niri_event_received: false,
         }

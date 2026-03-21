@@ -1,0 +1,15 @@
+[global]
+# Default mode for new workspaces: "master" or "scroll"
+default_workspace_mode = "master"
+
+# Settings for the master layout mode
+[master]
+# Width of the master column (0-100)
+column_width_percentage = 50.0
+# If true, single windows take full width
+maximize_single_window = true
+
+# Settings for the scroll layout mode
+[scroll]
+# If true, focus stays on the current window when new windows open
+maintain_focus_on_new_window = false

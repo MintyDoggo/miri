@@ -6,7 +6,7 @@ use crate::{
 };
 
 fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socket: &mut Socket) {
-    if config.master_maximize_single_window {
+    if config.master.maximize_single_window {
         let full_screen_action = Action::SetWindowWidth {
             id: Some(single_window_id),
             change: niri_ipc::SizeChange::SetProportion(100.0),
@@ -96,7 +96,7 @@ pub fn handle_master_gain_window(
 
     let set_child_column_width = Action::SetWindowWidth {
         id: Some(new_window.id),
-        change: niri_ipc::SizeChange::SetProportion(100.0 - config.master_column_default_width_percentage),
+        change: niri_ipc::SizeChange::SetProportion(100.0 - config.master.column_width_percentage),
     };
 
     action_socket
@@ -111,7 +111,7 @@ pub fn handle_master_gain_window(
 
     let set_master_proportion = Action::SetWindowWidth {
         id: Some(master_window.id),
-        change: niri_ipc::SizeChange::SetProportion(config.master_column_default_width_percentage),
+        change: niri_ipc::SizeChange::SetProportion(config.master.column_width_percentage),
     };
 
     action_socket

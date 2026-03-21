@@ -60,7 +60,7 @@ pub fn force_workspace_windows_into_layout_mode(
             }
 
             if window_count == 1 {
-                if config.master_maximize_single_window {
+                if config.master.maximize_single_window {
                     let window = windows[0];
                     let action = Action::SetWindowWidth {
                         id: Some(window.id),
@@ -87,7 +87,7 @@ pub fn force_workspace_windows_into_layout_mode(
 
             socket
                 .send(Request::Action(Action::SetColumnWidth {
-                    change: SizeChange::SetProportion(config.master_column_default_width_percentage),
+                    change: SizeChange::SetProportion(config.master.column_width_percentage),
                 }))
                 .expect("lost connection to niri")
                 .expect("niri rejected SetColumnWidth for master column");
@@ -100,7 +100,7 @@ pub fn force_workspace_windows_into_layout_mode(
 
             socket
                 .send(Request::Action(Action::SetColumnWidth {
-                    change: SizeChange::SetProportion(100.0 - config.master_column_default_width_percentage),
+                    change: SizeChange::SetProportion(100.0 - config.master.column_width_percentage),
                 }))
                 .expect("lost connection to niri")
                 .expect("niri rejected SetColumnWidth for child column");

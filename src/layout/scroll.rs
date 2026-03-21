@@ -6,7 +6,7 @@ pub fn handle_scroll_window_open(service_state: &ServiceState, new_window: &Wind
     if new_window.is_floating {
         return;
     }
-    if service_state.config.maintain_focus_on_new_window {
+    if service_state.config.scroll.maintain_focus_on_new_window {
         let focus_left = Action::FocusColumnLeft {};
         action_socket
             .send(Request::Action(focus_left))
