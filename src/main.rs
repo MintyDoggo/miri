@@ -3,7 +3,7 @@ use miri::{
     ipc::{Args, Command, MiriAction, MiriGet, MiriServiceCommand, send_command_to_miri_service},
     service::main_service,
 };
-use niri_ipc::{Request, socket::Socket};
+use niri_ipc::socket::Socket;
 
 trait CliRunner {
     async fn run(&self, niri_ipc: Socket);
@@ -26,17 +26,12 @@ impl CliRunner for MiriAction {
 }
 
 impl CliRunner for MiriGet {
-    async fn run(&self, mut niri_ipc: Socket) {
+    async fn run(&self, mut _niri_ipc: Socket) {
         match self {
             MiriGet::FocusedWorkspaceMode => {
                 send_command_to_miri_service(Command::Get {
                     get: MiriGet::FocusedWorkspaceMode,
                 });
-                match niri_ipc.send(Request::Workspaces) {
-                    Ok(Ok(response)) => print!("{:?}", response),
-                    Ok(Err(message)) => print!("{:?}", message),
-                    Err(error) => print!("{:?}", error),
-                };
             }
             MiriGet::OtherThing => {}
         }

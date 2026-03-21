@@ -13,12 +13,10 @@ fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socke
             id: Some(single_window_id),
             change: niri_ipc::SizeChange::SetProportion(100.0),
         };
-        if let Err(e) = action_socket
+        action_socket
             .send(Request::Action(full_screen_action))
-            .expect("Could not make single window full width")
-        {
-            eprint!("{e}");
-        }
+            .expect("lost connection to niri")
+            .expect("niri rejected SetWindowWidth");
     }
 }
 
@@ -33,17 +31,19 @@ fn move_window_under_focused_window(
     let child_column_count = previous_window_count - master_window_count;
 
     let focus_action = Action::FocusWindow { id: window_to_move.id };
-    let _ = action_socket
+    action_socket
         .send(Request::Action(focus_action))
-        .expect("Could not focus new window");
+        .expect("lost connection to niri")
+        .expect("niri rejected FocusWindow");
 
     // example: 4 windows in child column, focused window is at position 2 (1 based indexing). 4 - 2 = 2, move window up twice to be directly under the focused window
     let moves_needed = child_column_count.saturating_sub(focused_window.position.1);
 
     for _ in 0..moves_needed {
-        let _ = action_socket
+        action_socket
             .send(Request::Action(Action::MoveWindowUp {}))
-            .expect("Could not move window up");
+            .expect("lost connection to niri")
+            .expect("niri rejected MoveWindowUp");
     }
 }
 
@@ -84,9 +84,10 @@ pub fn handle_master_gain_window(
         }
     };
 
-    let _ = action_socket
+    action_socket
         .send(Request::Action(move_into_child_column))
-        .expect("Could not move new window into child column");
+        .expect("lost connection to niri")
+        .expect("niri rejected ConsumeOrExpelWindow");
 
     // if the new window went to the right of the child column, move it under our focused window. only do this for window open events
     if let Some(previous_focused_window) = previous_focused_window {
@@ -101,9 +102,10 @@ pub fn handle_master_gain_window(
         change: niri_ipc::SizeChange::SetProportion(100.0 - config.master_column_default_width_percentage),
     };
 
-    let _ = action_socket
+    action_socket
         .send(Request::Action(set_child_column_width))
-        .expect("Could not set child proportion");
+        .expect("lost connection to niri")
+        .expect("niri rejected SetWindowWidth for child column");
 
     let master_window = current_windows
         .iter()
@@ -116,9 +118,10 @@ pub fn handle_master_gain_window(
     };
 
     println!("{:?}", set_master_proportion);
-    let _ = action_socket
+    action_socket
         .send(Request::Action(set_master_proportion))
-        .expect("Could set master proportion");
+        .expect("lost connection to niri")
+        .expect("niri rejected SetWindowWidth for master column");
 }
 
 pub fn handle_master_lose_window(
@@ -149,14 +152,16 @@ pub fn handle_master_lose_window(
             let expel_action = Action::ConsumeOrExpelWindowLeft {
                 id: Some(top_child_window.id),
             };
-            let _ = action_socket
+            action_socket
                 .send(Request::Action(expel_action))
-                .expect("Could not expel child window left");
+                .expect("lost connection to niri")
+                .expect("niri rejected ConsumeOrExpelWindowLeft");
 
             let focus_action = Action::FocusColumnLeft {};
-            let _ = action_socket
+            action_socket
                 .send(Request::Action(focus_action))
-                .expect("Could focus left column");
+                .expect("lost connection to niri")
+                .expect("niri rejected FocusColumnLeft");
         }
     }
 }

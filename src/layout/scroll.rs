@@ -10,7 +10,7 @@ pub fn handle_scroll_window_open(service_state: &ServiceState, new_window: &Wind
         let focus_left = Action::FocusColumnLeft {};
         action_socket
             .send(Request::Action(focus_left))
-            .expect("Could not focus column to the left")
-            .expect("msg");
+            .expect("lost connection to niri")
+            .expect("niri rejected FocusColumnLeft");
     }
 }
