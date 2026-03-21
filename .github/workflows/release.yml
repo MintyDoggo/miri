@@ -40,7 +40,7 @@ jobs:
           increment: ${{ inputs.increment }}
 
       - name: install rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
           targets: x86_64-unknown-linux-musl
 
