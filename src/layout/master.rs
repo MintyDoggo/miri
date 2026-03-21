@@ -4,7 +4,6 @@ use crate::{
     config::MiriConfig,
     service_state::{MiriWindow, MiriWorkspace},
 };
-// TODO: handle action result types in this file
 
 fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socket: &mut Socket) {
     if config.master_maximize_single_window {

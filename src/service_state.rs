@@ -42,9 +42,8 @@ impl ServiceState {
 }
 #[derive(Debug)]
 pub struct Layout {
+    // TODO: theres a reason why we dont just use the id here but i dont remember why. also, solve case of output name being the same
     // output name and index used as key
-    // FIXME: solve case of output name being the same
-    // FIXME: just make this map id to workspace
     pub workspaces: HashMap<(String, u8), MiriWorkspace>,
     pub default_mode: Mode,
 }

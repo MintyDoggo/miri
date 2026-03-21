@@ -125,7 +125,7 @@ fn handle_niri_event(
     std::mem::swap(&mut service_state.previous_layout, &mut service_state.current_layout);
     // TODO: find a way to not have to clone the event
     event_state.apply(event.clone());
-    // FIXME: dont make this pass by reference, just have it move the value out
+
     copy_event_state_to_layout(
         event_state,
         &service_state.previous_layout,
