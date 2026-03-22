@@ -1,10 +1,12 @@
+# Miri
+
 An extension to the Niri window manager to allow for Master layout of windows
 
 https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
 
 **IMPORTANT:** this project is a work in progress and there are no guarantees of functionality at the moment. **There will be bugs**, so please feel free to report them or make a pull request and I'll do my best to get on it. Master layout mode is currently in a usable state but there are certain edge cases which need to be ironed out
 
-# Supported layout modes
+## Supported layout modes
 - Master       - In progress
 - Grid         - Planned
 - Hybrid       - Planned
@@ -13,10 +15,10 @@ https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
 
 Other than adding more layout modes, I'd like to make a DMS plugin for the bar which shows the current mode of the current workspace on that output
 
-# Installation and Setup
+## Installation and Setup
 This project has 2 aspects: the cli and the service (daemon). You can use the cli without the service for certain actions, but the service is necessary for maintaining state and creating a true modal experience.
 
-## Install
+### Install
 1. Run the install script from the latest release and follow the instructions
 ```sh
 curl -fsSL https://github.com/MintyDoggo/miri/releases/latest/download/install.sh \
@@ -29,12 +31,12 @@ curl -fsSL https://github.com/MintyDoggo/miri/releases/latest/download/install.s
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-## Keybinds setup
+### Keybinds setup
 All miri actions can be spawned via `miri action <action-name>`. You can list all available actions by running `miri action`. To add an action to a keybind, edit your niri config and put the spawn command for the keybind you want
 Example:
 `Mod+M { spawn "miri" "action" "cycle-focused-workspace-mode"; }`
 
-## Overrides setup
+### Overrides setup
 Now it's time to setup the overrides! Miri does this to ensure consistency and expected behavior in other layout modes. For scroll mode (or if the miri service is not running), these overrides behave identical to vanilla niri. 
 If you only want to use the miri cli and not the miri service, you can skip this section entirely
 1. Go to your niri config `~/.config/niri/config.kdl`
@@ -81,7 +83,7 @@ Mod+Ctrl+WheelScrollUp cooldown-ms=150 { spawn "miri" "override" "move-column-to
 ```
 Yours may look different so please be sure to check for all cases where the listed actions are used
 
-# Configuration
+## Configuration
 Miri can be configured though `~/.config/miri/config.toml`. These options are not finalized and will likely change, but if you are interested, here is the current configuration list:
 
 ```toml
@@ -102,7 +104,7 @@ maximize_single_window = true
 maintain_focus_on_new_window = false
 ```
 
-# Misc
+## Misc
 ASCII art for installer
 ```
 ╔═══════-□×╗╔═════-□×╗    ╔══════-□×╗╔══════-□×╗
