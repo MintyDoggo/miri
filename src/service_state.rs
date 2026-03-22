@@ -58,9 +58,8 @@ impl ServiceState {
 }
 #[derive(Debug)]
 pub struct Layout {
-    // TODO: theres a reason why we dont just use the id here but i dont remember why. also, solve case of output name being the same
-    // output name and index used as key
-    pub workspaces: HashMap<(String, u8), MiriWorkspace>,
+    // TODO: make the key configurable to use (output, index) for people who want to assign the mode in this way
+    pub workspaces: HashMap<u64, MiriWorkspace>,
     pub default_mode: Mode,
 }
 
@@ -141,7 +140,7 @@ pub fn copy_event_state_to_layout(event_state: &EventStreamState, previous_layou
             .as_ref()
             .expect("Could not get workspace output")
             .clone();
-        let key = (output_name.clone(), workspace.idx);
+        let key = workspace.id;
 
         let windows: Vec<MiriWindow> = event_state
             .windows
@@ -163,12 +162,11 @@ pub fn copy_event_state_to_layout(event_state: &EventStreamState, previous_layou
             })
             .collect();
 
-        let previous_mode =
-            if let Some(previous_workspace) = previous_layout.workspaces.get(&(output_name.clone(), workspace.idx)) {
-                previous_workspace.mode
-            } else {
-                layout.default_mode
-            };
+        let previous_mode = if let Some(previous_workspace) = previous_layout.workspaces.get(&workspace.id) {
+            previous_workspace.mode
+        } else {
+            layout.default_mode
+        };
 
         if workspace.is_focused {
             focused_workspace_id = Some(workspace.id);
