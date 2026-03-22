@@ -1,6 +1,37 @@
 use niri_ipc::socket::Socket;
 use niri_ipc::{Request, Response, Window, Workspace, state::EventStreamState};
 
+pub const SUPPORTED_NIRI_VERSION: &str = "25.11";
+
+pub fn get_niri_version(action_socket: &mut Socket) -> Option<String> {
+    let reply = action_socket.send(Request::Version).ok()?;
+    let response = reply.ok()?;
+    match response {
+        Response::Version(version) => Some(version),
+        _ => None,
+    }
+}
+
+pub fn warn_if_version_mismatch(action_socket: &mut Socket) {
+    let Some(running_version) = get_niri_version(action_socket) else {
+        eprintln!("[Warning]: Could not determine niri version");
+        return;
+    };
+    let running_version_base = match running_version.split_whitespace().next() {
+        Some(base) => base,
+        None => {
+            eprintln!("[Warning]: Could not parse niri version string");
+            return;
+        }
+    };
+    if running_version_base != SUPPORTED_NIRI_VERSION {
+        eprintln!(
+            "[Warning]: niri version mismatch! Expected {}, but running {}",
+            SUPPORTED_NIRI_VERSION, running_version
+        );
+    }
+}
+
 pub fn get_focused_window(event_state: &EventStreamState) -> Option<&Window> {
     event_state.windows.windows.values().find(|window| window.is_focused)
 }

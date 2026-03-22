@@ -11,7 +11,7 @@ use crate::layout::handler::{
 };
 use crate::miri_overrides::handle_override;
 use crate::miri_socket::MiriListener;
-use crate::niri_ipc_utils::get_windows_on_focused_workspace;
+use crate::niri_ipc_utils::{get_windows_on_focused_workspace, warn_if_version_mismatch};
 use crate::niri_socket::NiriSocket;
 use crate::service_state::{ServiceState, copy_event_state_to_layout};
 trait CliRunner {
@@ -222,6 +222,8 @@ pub async fn main_service() {
     let mut event_state = EventStreamState::default();
     let config = MiriConfig::load();
     let mut service_state = ServiceState::new(config);
+
+    warn_if_version_mismatch(&mut action_socket);
 
     tokio::spawn(run_cli_listener(tx.clone()));
     tokio::spawn(run_niri_event_listener(tx.clone()));
