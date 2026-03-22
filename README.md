@@ -1,6 +1,6 @@
-# Miri
+# Miri (modal niri)
 
-An extension to the [niri window manager](https://github.com/niri-wm/niri) to allow for Master layout and other modes, similar to hyprland or mangowc.
+An extension to [niri](https://github.com/niri-wm/niri) for allowing optional tiling layouts, such as Master stack. Provides a similar experience to [hyprland](https://hypr.land/) or [mangowm](https://mangowm.github.io/)
 
 https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
 
@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
 | Drag and Pan | 📋 Planned     |
 | Dwindle      | ❌ Not Planned |
 
-Other than adding more layout modes, I'd like to make a DMS plugin for the bar which shows the current mode of the current workspace on that output
+Also planned: a DMS bar plugin to display the current workspace layout mode
 > [!WARNING]
 > This project is in development. **There will be bugs**! Master layout is usable, but rough edges remain. Issues and PRs welcome!
 
@@ -25,7 +25,7 @@ curl -fsSL https://github.com/MintyDoggo/miri/releases/latest/download/install.s
   && sh /tmp/miri-install.sh \
   && rm /tmp/miri-install.sh
 ```
-Once installed, the `miri` command will be available. Be sure `~/.local/bin` is in your `PATH`:
+Once installed, the `miri` command will be available. Be sure `~/.local/bin` is in your `PATH`
 
 ## Keybinds setup
 All miri actions can be spawned via `miri action <action-name>`. You can list all available actions by running `miri action`. To add an action to a keybind, edit your niri config and put the spawn command for the keybind you want
@@ -37,19 +37,20 @@ Now it's time to setup the overrides!
 > [!IMPORTANT]
 > Skip this section if you only use the miri CLI. Required if you're using the miri service
 
-1. Go to your niri config `~/.config/niri/config.kdl`
-2. Add or replace these keybinds with their equivalent miri override:
-   - `move-column-left`
-   - `move-column-right`
-   - `move-column-to-first`
-   - `move-column-to-last`
-   - `move-column-to-monitor-up`
-   - `move-column-to-monitor-down`
-   - `move-column-to-monitor-left`
-   - `move-column-to-monitor-right`
-   - `move-column-to-workspace-up`
-   - `move-column-to-workspace-down`
-   - `move-column-to-workspace`
+Checking the current list of overrides is the same as is for actions: `miri override` will display all of them
+
+In your niri config (`~/.config/niri/config.kdl`), **add or replace** these keybinds with their equivalent miri override:
+- `move-column-left`
+- `move-column-right`
+- `move-column-to-first`
+- `move-column-to-last`
+- `move-column-to-monitor-up`
+- `move-column-to-monitor-down`
+- `move-column-to-monitor-left`
+- `move-column-to-monitor-right`
+- `move-column-to-workspace-up`
+- `move-column-to-workspace-down`
+- `move-column-to-workspace`
 
 They function identical, but require using `spawn`. Here is an example of my niri configuration with miri overrides:
 ```js
@@ -67,19 +68,14 @@ Mod+Shift+Ctrl+Left { spawn "miri" "override" "move-column-to-monitor-left"; }  
 Mod+Shift+Ctrl+Right { spawn "miri" "override" "move-column-to-monitor-right"; }  // { move-column-to-monitor-right; }
 Mod+Shift+1 { spawn "miri" "override" "move-column-to-workspace" "1"; }           // { move-column-to-workspace 1; }
 Mod+Shift+2 { spawn "miri" "override" "move-column-to-workspace" "2"; }           // { move-column-to-workspace 2; }
-Mod+Shift+3 { spawn "miri" "override" "move-column-to-workspace" "3"; }           // { move-column-to-workspace 3; }
-Mod+Shift+4 { spawn "miri" "override" "move-column-to-workspace" "4"; }           // { move-column-to-workspace 4; }
-Mod+Shift+5 { spawn "miri" "override" "move-column-to-workspace" "5"; }           // { move-column-to-workspace 5; }
-Mod+Shift+6 { spawn "miri" "override" "move-column-to-workspace" "6"; }           // { move-column-to-workspace 6; }
-Mod+Shift+7 { spawn "miri" "override" "move-column-to-workspace" "7"; }           // { move-column-to-workspace 7; }
-Mod+Shift+8 { spawn "miri" "override" "move-column-to-workspace" "8"; }           // { move-column-to-workspace 8; }
-Mod+Shift+9 { spawn "miri" "override" "move-column-to-workspace" "9"; }           // { move-column-to-workspace 9; }
+// ... etc                                                                        // { move-column-to-workspace <index>; }
 Mod+Ctrl+I { spawn "miri" "override" "move-column-to-workspace-up"; }             // { move-column-to-workspace-up; }
 Mod+Ctrl+U { spawn "miri" "override" "move-column-to-workspace-down"; }           // { move-column-to-workspace-down; }
 Mod+Ctrl+WheelScrollDown cooldown-ms=150 { spawn "miri" "override" "move-column-to-workspace-down"; } // { move-column-to-workspace-down; }
 Mod+Ctrl+WheelScrollUp cooldown-ms=150 { spawn "miri" "override" "move-column-to-workspace-up"; }     // { move-column-to-workspace-up; }
 ```
-Yours may look different so please be sure to check for all cases where the listed actions are used
+> [!NOTE]
+> In the case that the miri service is not running or something goes wrong, miri will fallback on executing the niri action normally. This ensures your config always works as expected as long as miri is installed
 
 You're now all setup! Continue reading for further configuration
 
