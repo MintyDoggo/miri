@@ -24,7 +24,7 @@ WHITE='\033[37m'
 BOLD='\033[1m'
 GREY='\033[0;90m'
 RESET='\033[0m'
-
+UNDERLINE='\033[4m'
 TEXT=${GREY}
 
 info() { echo -e    "${BLUE}[Miri Info]:${GREY} $*${RESET}"; }
@@ -32,7 +32,7 @@ success() { echo -e "${GREEN}[Miri Success]:${GREY} $*${RESET}"; }
 die()  { echo -e    "${RED}[Miri Error]:${GREY} $*${RESET}" >&2; exit 1; }
 
 # --- menu ---
-# Usage: select_menu "Prompt text" "Option 1" "Option 2" ...
+# Usage: select_menu "Prompt text" "Option 1" "Option 2" 
 # Result is stored in MENU_RESULT
 select_menu() {
   local prompt="$1"
@@ -89,7 +89,7 @@ systemctl --user show-environment >/dev/null 2>&1 || die "systemd user session n
 
 # ascii art greeter (a mess)
 echo ""
-echo -e "${BOLD}Miri${RESET} ${TEXT}(modal niri)${RESET}"
+echo -e "${BOLD}${UNDERLINE}miri${RESET} ${TEXT}(modal niri)${RESET}"
 echo -e "${RESET}╔═══════-□×╗${TEXT}╔═════-□×╗    ${RESET}╔══════-□×${RESET}╗${TEXT}╔══════-□×╗"
 echo -e "${RESET}║${TEXT}⠿⠿⠯⠥${RESET}      ║${TEXT}╚════════╝    ${RESET}║${TEXT}>_ ${CYAN}${BOLD}miri${RESET}  ║${GREY}║>_       ║"
 echo -e "${RESET}║${TEXT}⠿⠿⠶⠶⠶⠶⠶⠦⠤${RESET} ║${TEXT}╔═════-□×╗    ${RESET}╚═════════╝${GREY}╚═════════╝"
