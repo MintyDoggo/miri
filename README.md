@@ -1,57 +1,53 @@
 # Miri
 
-An extension to the Niri window manager to allow for Master layout of windows
+An extension to the [niri window manager](https://github.com/niri-wm/niri) to allow for Master layout and other modes, similar to hyprland or mangowc.
 
 https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
-> [!NOTE]
-> This project is in development. **There will be bugs**, so if you find anything, please feel free to report it or submit a pull request. Master layout mode is currently in a usable state but there are certain edge cases which need to be ironed out
 
-## Supported layout modes
-- Master       - In progress
-- Grid         - Planned
-- Hybrid       - Planned
-- Drag and pan - Planned
-- Dwindle      - not planned
+**Supported Layout Modes**
+- [x] Master *(in progress)*
+- [ ] Grid
+- [ ] Hybrid
+- [ ] Drag and Pan
+- ~~Dwindle~~ *(not planned)*
 
 Other than adding more layout modes, I'd like to make a DMS plugin for the bar which shows the current mode of the current workspace on that output
+> [!WARNING]
+> This project is in development. **There will be bugs**, so if you find anything, please feel free to report it or submit a pull request. Master layout mode is currently in a usable state but there are certain edge cases which need to be ironed out
 
-## Installation and Setup
-This project has 2 aspects: the cli and the service (daemon). You can use the cli without the service for certain actions, but the service is necessary for maintaining state and creating a true modal experience.
-
-### 1. Install
-1. Run the install script from the latest release and follow the instructions
+## Install
+Run the install script from the latest release and follow the instructions
 ```sh
 curl -fsSL https://github.com/MintyDoggo/miri/releases/latest/download/install.sh \
   -o /tmp/miri-install.sh \
   && sh /tmp/miri-install.sh \
   && rm /tmp/miri-install.sh
 ```
-2. Once installed, the `miri` command will be available. Be sure `~/.local/bin` is in your `PATH`:
-```sh
-export PATH="$HOME/.local/bin:$PATH"
-```
+Once installed, the `miri` command will be available. Be sure `~/.local/bin` is in your `PATH`:
 
-### 2. Keybinds setup
+## Keybinds setup
 All miri actions can be spawned via `miri action <action-name>`. You can list all available actions by running `miri action`. To add an action to a keybind, edit your niri config and put the spawn command for the keybind you want
 Example:
 `Mod+M { spawn "miri" "action" "cycle-focused-workspace-mode"; }`
 
-### 3. Overrides setup
-Now it's time to setup the overrides! Miri does this to ensure consistency and expected behavior in other layout modes. For scroll mode (or if the miri service is not running), these overrides behave identical to vanilla niri. 
-If you only want to use the miri cli and not the miri service, you can skip this section entirely
+## Overrides setup
+Now it's time to setup the overrides!
+> [!IMPORTANT]
+> If you intend to use miri with the systemd user service (recommended) please follow these steps to ensure a consistent experience in other layout modes. For scroll mode (or if the miri service is not running), these overrides behave identical to vanilla niri. If you only want to use the miri cli for actions, you can skip this section entirely
+
 1. Go to your niri config `~/.config/niri/config.kdl`
 2. Add or replace these keybinds with their equivalent miri override:
-   - move-column-left
-   - move-column-right
-   - move-column-to-first
-   - move-column-to-last
-   - move-column-to-monitor-up 
-   - move-column-to-monitor-down 
-   - move-column-to-monitor-left 
-   - move-column-to-monitor-right 
-   - move-column-to-workspace-up 
-   - move-column-to-workspace-down
-   - move-column-to-workspace
+   - `move-column-left`
+   - `move-column-right`
+   - `move-column-to-first`
+   - `move-column-to-last`
+   - `move-column-to-monitor-up`
+   - `move-column-to-monitor-down`
+   - `move-column-to-monitor-left`
+   - `move-column-to-monitor-right`
+   - `move-column-to-workspace-up`
+   - `move-column-to-workspace-down`
+   - `move-column-to-workspace`
 
 They function identical, but require using `spawn`. Here is an example of my niri configuration with miri overrides:
 ```js
