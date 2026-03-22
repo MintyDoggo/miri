@@ -1,6 +1,6 @@
 # Miri (modal niri)
 
-An extension to [niri](https://github.com/niri-wm/niri) for allowing optional tiling layouts, such as Master stack. Provides a similar experience to [hyprland](https://hypr.land/) or [mangowm](https://mangowm.github.io/)
+A [niri](https://github.com/niri-wm/niri) extension adding optional tiling layouts, such as **Master Stack**, similar to [hyprland](https://hypr.land/) or [mangowm](https://mangowm.github.io/)
 
 https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
 
