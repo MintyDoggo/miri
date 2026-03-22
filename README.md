@@ -32,11 +32,13 @@ Once installed, the `miri` command will be available. Be sure `~/.local/bin` is 
 
 ## Keybinds setup
 All miri actions can be spawned via `miri action <action-name>`. You can list all available actions by running `miri action`. To add an action to a keybind, edit your niri config and put the spawn command for the keybind you want
-Example:
-`Mod+M { spawn "miri" "action" "cycle-focused-workspace-mode"; }`
-
+**Example:**
+```js
+Mod+S { spawn "miri" "action" "set-focused-workspace-mode" "scroll"; }
+Mod+M { spawn "miri" "action" "set-focused-workspace-mode" "master"; }
+Mod+C { spawn "miri" "action" "cycle-focused-workspace-mode"; }
+```
 ## Overrides setup
-Now it's time to setup the overrides!
 > [!IMPORTANT]
 > Skip this section if you only use the miri CLI. Required if you're using the miri service
 
@@ -55,7 +57,7 @@ In your niri config (`~/.config/niri/config.kdl`), **add or replace** these keyb
 - `move-column-to-workspace-down`
 - `move-column-to-workspace`
 
-They function identical, but require using `spawn`. Here is an example of my niri configuration with miri overrides:
+**Example** of my niri configuration with miri overrides:
 ```js
 Mod+Shift+Left { spawn "miri" "override" "move-column-left"; }                    // { move-column-left; }
 Mod+Shift+Right { spawn "miri" "override" "move-column-right"; }                  // { move-column-right; }
@@ -107,9 +109,9 @@ maintain_focus_on_new_window = false
 ASCII art for installer
 ```
 ╔═══════-□×╗╔═════-□×╗    ╔══════-□×╗╔══════-□×╗
-║⠿⠿⠯⠥      ║╚════════╝    ║>_ miri  ║║>_       ║
-║⠿⠿⠶⠶⠶⠶⠶⠦⠤ ║╔═════-□×╗    ╚═════════╝╚═════════╝
-║⠿⠿⠿⠯⠭⠭⠉⠉  ║╚════════╝    ╔══════-□×╗╔══════-□×╗
+║          ║╚════════╝    ║>_ miri  ║║>_       ║
+║          ║╔═════-□×╗    ╚═════════╝╚═════════╝
+║          ║╚════════╝    ╔══════-□×╗╔══════-□×╗
 ║>_ miri   ║╔═════-□×╗    ║>_       ║║>_       ║
 ╚══════════╝╚════════╝    ╚═════════╝╚═════════╝
 ```
