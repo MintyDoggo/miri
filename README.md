@@ -2,7 +2,7 @@
 
 A [niri](https://github.com/niri-wm/niri) extension adding optional tiling layouts, such as **Master Stack**, similar to [hyprland](https://hypr.land/) or [mangowm](https://mangowm.github.io/)
 
-https://github.com/user-attachments/assets/b415a86f-6775-40c6-8370-d418a5cf905b
+https://github.com/user-attachments/assets/a3b7eaa7-c69d-4b0c-b482-c5944185eead
 
 **Supported Layout Modes**
 | Mode         | Status        |
