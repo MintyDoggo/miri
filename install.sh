@@ -10,6 +10,8 @@ SERVICE_DIR="$HOME/.config/systemd/user"
 WANTS_DIR="$SERVICE_DIR/niri.service.wants"
 BINARY_ASSET="miri-x86_64"
 SERVICE_ASSET="miri.service"
+CONFIG_ASSET="config.toml"
+CONFIG_DIR="$HOME/.config/miri"
 
 # --- helpers ---
 RED='\033[31m'
@@ -87,7 +89,7 @@ systemctl --user show-environment >/dev/null 2>&1 || die "systemd user session n
 
 # ascii art greeter (a mess)
 echo ""
-echo -e "${BOLD}Miri${RESET} ${TEXT}(Modal Niri extension for Niri)${RESET}"
+echo -e "${BOLD}Miri${RESET} ${TEXT}(modal niri)${RESET}"
 echo -e "${RESET}╔═══════-□×╗${TEXT}╔═════-□×╗    ${RESET}╔══════-□×${RESET}╗${TEXT}╔══════-□×╗"
 echo -e "${RESET}║${TEXT}⠿⠿⠯⠥${RESET}      ║${TEXT}╚════════╝    ${RESET}║${TEXT}>_ ${CYAN}${BOLD}miri${RESET}  ║${GREY}║>_       ║"
 echo -e "${RESET}║${TEXT}⠿⠿⠶⠶⠶⠶⠶⠦⠤${RESET} ║${TEXT}╔═════-□×╗    ${RESET}╚═════════╝${GREY}╚═════════╝"
@@ -132,6 +134,16 @@ if [[ "$ACTION" == "Install miri" ]]; then
   curl -sL "$BINARY_URL" -o "$INSTALL_DIR/miri"
   chmod +x "$INSTALL_DIR/miri"
 
+  # --- install config if missing ---
+  if [[ ! -f "$CONFIG_DIR/config.toml" ]]; then
+    CONFIG_URL=$(get_asset_url "$CONFIG_ASSET")
+    mkdir -p "$CONFIG_DIR"
+    info "No config found, downloading default config to $CONFIG_DIR/config.toml"
+    curl -sL "$CONFIG_URL" -o "$CONFIG_DIR/config.toml"
+  else
+    info "Config already exists at $CONFIG_DIR/config.toml, skipping"
+  fi
+
   if [[ "$SETUP_SERVICE" == "Yes (recommended)" ]]; then
     # --- install service ---
     SERVICE_URL=$(get_asset_url "$SERVICE_ASSET")
@@ -146,11 +158,10 @@ if [[ "$ACTION" == "Install miri" ]]; then
     info "Reloading systemd user daemon"
     systemctl --user daemon-reload
 
-    success "Done. Miri will start with niri next login"
-    info "To start it now: systemctl --user start miri.service"
+    success "Done. Miri will start with niri next login. To start now: systemctl --user start miri.service"
   else
-    success "Done. Binary installed to $INSTALL_DIR/miri"
     info "Skipped systemd service setup"
+    success "Done. Binary installed to $INSTALL_DIR/miri"
   fi
 
 elif [[ "$ACTION" == "Uninstall miri" ]]; then

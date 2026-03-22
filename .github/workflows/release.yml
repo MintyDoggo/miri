@@ -64,5 +64,6 @@ jobs:
             miri-x86_64
             miri.service
             install.sh
+            config.toml
           body: |
             ${{ inputs.description }}
