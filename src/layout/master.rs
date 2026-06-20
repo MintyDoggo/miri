@@ -24,6 +24,11 @@ fn move_window_under_focused_window(
     action_socket: &mut Socket,
     window_to_move: &Window,
 ) {
+    // if the focused window is floating, get out of here
+    let Some(focused_window_position) = focused_window.position else {
+        return;
+    };
+
     let previous_window_count = window_count - 1;
     let master_window_count = 1;
     let child_column_count = previous_window_count - master_window_count;
@@ -35,7 +40,7 @@ fn move_window_under_focused_window(
         .expect("niri rejected FocusWindow");
 
     // example: 4 windows in child column, focused window is at position 2 (1 based indexing). 4 - 2 = 2, move window up twice to be directly under the focused window
-    let moves_needed = child_column_count.saturating_sub(focused_window.position.1);
+    let moves_needed = child_column_count.saturating_sub(focused_window_position.1);
 
     for _ in 0..moves_needed {
         action_socket
@@ -52,10 +57,21 @@ pub fn handle_master_gain_window(
     action_socket: &mut Socket,
     previous_focused_window: Option<&MiriWindow>,
 ) {
-    let current_windows = &current_workspace.windows;
-    let window_count = current_windows.len();
+    if new_window.is_floating {
+        return;
+    }
 
-    if window_count == 1 {
+    let tiled_windows: Vec<&MiriWindow> = current_workspace
+        .windows
+        .iter()
+        .filter(|window| !window.is_floating)
+        .collect();
+
+    if tiled_windows.is_empty() {
+        return;
+    };
+
+    if tiled_windows.len() == 1 {
         handle_single_window(&config, new_window.id, action_socket);
         return;
     }
@@ -63,7 +79,7 @@ pub fn handle_master_gain_window(
     let (window_x, _) = new_window
         .layout
         .pos_in_scrolling_layout
-        .expect("Could not get position in scrolling layout");
+        .expect("Could not get position in scrolling layout of tiled window");
 
     let move_into_child_column = match window_x {
         2 => Action::ConsumeOrExpelWindowRight {
@@ -90,7 +106,7 @@ pub fn handle_master_gain_window(
     if let Some(previous_focused_window) = previous_focused_window {
         let third_column_index = 3;
         if window_x >= third_column_index {
-            move_window_under_focused_window(previous_focused_window, window_count, action_socket, new_window);
+            move_window_under_focused_window(previous_focused_window, tiled_windows.len(), action_socket, new_window);
         }
     }
 
@@ -104,9 +120,9 @@ pub fn handle_master_gain_window(
         .expect("lost connection to niri")
         .expect("niri rejected SetWindowWidth for child column");
 
-    let master_window = current_windows
+    let master_window = tiled_windows
         .iter()
-        .find(|window| window.position.0 == 1 && window.position.1 == 1)
+        .find(|window| window.position == Some((1, 1)))
         .expect("Could not find the master window when adding a new window");
 
     let set_master_proportion = Action::SetWindowWidth {
@@ -125,22 +141,29 @@ pub fn handle_master_lose_window(
     config: &MiriConfig,
     action_socket: &mut Socket,
 ) {
-    let current_windows = &current_workspace_state.windows;
-    if current_windows.len() <= 0 {
+    let tiled_windows: Vec<&MiriWindow> = current_workspace_state
+        .windows
+        .iter()
+        .filter(|window| !window.is_floating)
+        .collect();
+
+    if tiled_windows.is_empty() {
         return;
     };
-    if current_windows.len() == 1 {
-        if let Some(window) = current_windows.first() {
-            handle_single_window(config, window.id, action_socket);
-        }
+
+    if tiled_windows.len() == 1 {
+        handle_single_window(config, tiled_windows[0].id, action_socket);
         return;
     }
 
-    if current_windows.len() >= 2 {
+    if tiled_windows.len() >= 2 {
         let master_closed: bool = current_workspace_state.get_workspace_column_count() == 1;
 
         if master_closed {
-            let Some(top_child_window) = current_windows.iter().find(|&window| window.position.1 == 1) else {
+            let Some(top_child_window) = tiled_windows
+                .iter()
+                .find(|window| window.position.map(|(_, row)| row == 1).unwrap_or(false))
+            else {
                 eprintln!("Could not find top window in child column");
                 return;
             };

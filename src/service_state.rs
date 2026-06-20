@@ -109,8 +109,13 @@ impl MiriWorkspace {
         let mut seen_columns = 0u64;
         let mut column_count = 0;
         for window in self.windows.iter() {
-            debug_assert!(window.position.0 < 64, "column index exceeds bitmask capacity");
-            let column_bit = 1u64 << window.position.0;
+            // dont count floating windows
+            let Some(position) = window.position else {
+                continue;
+            };
+            
+            debug_assert!(position.0 < 64, "column index exceeds bitmask capacity");
+            let column_bit = 1u64 << position.0;
             if seen_columns & column_bit == 0 {
                 seen_columns |= column_bit;
                 column_count += 1;
@@ -123,7 +128,7 @@ impl MiriWorkspace {
 #[derive(Debug)]
 pub struct MiriWindow {
     pub id: u64,
-    pub position: (usize, usize),
+    pub position: Option<(usize, usize)>,
     pub is_focused: bool,
     pub is_floating: bool,
 }
@@ -148,14 +153,9 @@ pub fn copy_event_state_to_layout(event_state: &EventStreamState, previous_layou
             .values()
             .filter(|window| window.workspace_id == Some(workspace.id))
             .map(|window| {
-                let position = window
-                    .layout
-                    .pos_in_scrolling_layout
-                    .expect("Could not get position in scrolling layout");
-
                 MiriWindow {
                     id: window.id,
-                    position,
+                    position: window.layout.pos_in_scrolling_layout,
                     is_focused: window.is_focused,
                     is_floating: window.is_floating,
                 }
