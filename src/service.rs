@@ -191,8 +191,30 @@ fn handle_niri_event(
                         &service_state.config,
                         action_socket,
                     );
-                    handle_workspace_gain_window(current_workspace, window, &service_state.config, action_socket, None)
+                    handle_workspace_gain_window(current_workspace, window, &service_state.config, action_socket, None);
+                    return;
                 }
+
+                // handle window switching from tiling->floating and floating->tiling
+                if let Some(previous_window) = previous_focused_workspace
+                    .windows
+                    .iter()
+                    .find(|previous_window| previous_window.id == window.id)
+                {
+                    match (previous_window.is_floating, window.is_floating) {
+                        (true, false) => handle_workspace_gain_window(
+                            current_workspace,
+                            window,
+                            &service_state.config,
+                            action_socket,
+                            previous_focused_workspace.get_focused_window(),
+                        ),
+                        (false, true) => {
+                            handle_workspace_lose_window(current_workspace, &service_state.config, action_socket)
+                        }
+                        _ => {}
+                    }
+                };
             }
         }
         niri_ipc::Event::WindowClosed { id: _ } => {

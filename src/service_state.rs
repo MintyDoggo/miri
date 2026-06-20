@@ -113,7 +113,7 @@ impl MiriWorkspace {
             let Some(position) = window.position else {
                 continue;
             };
-            
+
             debug_assert!(position.0 < 64, "column index exceeds bitmask capacity");
             let column_bit = 1u64 << position.0;
             if seen_columns & column_bit == 0 {
@@ -152,13 +152,11 @@ pub fn copy_event_state_to_layout(event_state: &EventStreamState, previous_layou
             .windows
             .values()
             .filter(|window| window.workspace_id == Some(workspace.id))
-            .map(|window| {
-                MiriWindow {
-                    id: window.id,
-                    position: window.layout.pos_in_scrolling_layout,
-                    is_focused: window.is_focused,
-                    is_floating: window.is_floating,
-                }
+            .map(|window| MiriWindow {
+                id: window.id,
+                position: window.layout.pos_in_scrolling_layout,
+                is_focused: window.is_focused,
+                is_floating: window.is_floating,
             })
             .collect();
 
