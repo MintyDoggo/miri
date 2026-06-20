@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-niri-ipc = "25.11.0"
+niri-ipc = "=26.4.0"
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4.5.58", features = ["derive"] }

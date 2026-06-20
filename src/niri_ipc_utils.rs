@@ -1,7 +1,7 @@
 use niri_ipc::socket::Socket;
 use niri_ipc::{Request, Response, Window, Workspace, state::EventStreamState};
 
-pub const SUPPORTED_NIRI_VERSION: &str = "25.11";
+pub const SUPPORTED_NIRI_VERSION: &str = "26.04";
 
 pub fn get_niri_version(action_socket: &mut Socket) -> Option<String> {
     let reply = action_socket.send(Request::Version).ok()?;
