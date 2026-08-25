@@ -8,19 +8,10 @@ use crate::{
     service_state::{MiriWindow, MiriWorkspace},
 };
 
-#[derive(Debug, PartialEq)]
-struct ScrollLayoutPlan {
-    columns: BTreeMap<usize, Vec<(usize, u64)>>,
-    window_ids: Vec<u64>,
-    focused_window_id: Option<u64>,
-}
-
-fn plan_scroll_layout(windows: &[&Window]) -> ScrollLayoutPlan {
+fn group_workspace_windows_by_column(workspace_windows: &[&Window]) -> BTreeMap<usize, Vec<(usize, u64)>> {
     let mut columns: BTreeMap<usize, Vec<(usize, u64)>> = BTreeMap::new();
-    let mut window_ids = Vec::new();
-    let mut focused_window_id = None;
 
-    for window in windows {
+    for window in workspace_windows {
         if window.is_floating {
             continue;
         }
@@ -29,39 +20,33 @@ fn plan_scroll_layout(windows: &[&Window]) -> ScrollLayoutPlan {
         };
 
         columns.entry(column).or_default().push((row, window.id));
-        window_ids.push(window.id);
-        if window.is_focused {
-            focused_window_id = Some(window.id);
-        }
     }
 
     for windows_in_column in columns.values_mut() {
         windows_in_column.sort_unstable_by_key(|(row, _)| *row);
     }
 
-    ScrollLayoutPlan {
-        columns,
-        window_ids,
-        focused_window_id,
-    }
+    columns
 }
 
-fn force_scroll_layout(windows: Vec<&Window>, socket: &mut Socket, config: &MiriConfig) {
-    if !config.scroll.spread_windows_on_enter {
-        return;
-    }
+fn force_scroll_layout(workspace_windows: Vec<&Window>, socket: &mut Socket, column_width_percentage: f64) {
+    let focused_window_id = workspace_windows
+        .iter()
+        .find(|window| window.is_focused)
+        .map(|window| window.id);
+    let grouped_windows = group_workspace_windows_by_column(&workspace_windows);
 
-    let plan = plan_scroll_layout(&windows);
-
-    // Expel bottom windows one at a time. Re-focus the top window before each
-    // action because niri focuses the window it just expelled.
-    for windows_in_column in plan.columns.values() {
+    // Expel bottom windows one at a time from each original column.
+    for windows_in_column in grouped_windows.values() {
         if let Some((_, anchor_window_id)) = windows_in_column.first().copied() {
+            if windows_in_column.len() == 1 {
+                continue;
+            }
+            socket
+                .send(Request::Action(Action::FocusWindow { id: anchor_window_id }))
+                .expect("lost connection to niri")
+                .expect("niri rejected FocusWindow while spreading scroll columns");
             for _ in 1..windows_in_column.len() {
-                socket
-                    .send(Request::Action(Action::FocusWindow { id: anchor_window_id }))
-                    .expect("lost connection to niri")
-                    .expect("niri rejected FocusWindow while spreading scroll columns");
                 socket
                     .send(Request::Action(Action::ExpelWindowFromColumn {}))
                     .expect("lost connection to niri")
@@ -71,21 +56,24 @@ fn force_scroll_layout(windows: Vec<&Window>, socket: &mut Socket, config: &Miri
     }
 
     // Every tiled window is now its own full-height scrolling column.
-    for window_id in plan.window_ids {
+    for window in workspace_windows
+        .into_iter()
+        .filter(|window| !window.is_floating && window.layout.pos_in_scrolling_layout.is_some())
+    {
         socket
             .send(Request::Action(Action::SetWindowWidth {
-                id: Some(window_id),
-                change: SizeChange::SetProportion(config.scroll.column_width_percentage),
+                id: Some(window.id),
+                change: SizeChange::SetProportion(column_width_percentage),
             }))
             .expect("lost connection to niri")
             .expect("niri rejected SetWindowWidth for scroll column");
         socket
-            .send(Request::Action(Action::ResetWindowHeight { id: Some(window_id) }))
+            .send(Request::Action(Action::ResetWindowHeight { id: Some(window.id) }))
             .expect("lost connection to niri")
             .expect("niri rejected ResetWindowHeight for scroll window");
     }
 
-    if let Some(id) = plan.focused_window_id {
+    if let Some(id) = focused_window_id {
         socket
             .send(Request::Action(Action::FocusWindow { id }))
             .expect("lost connection to niri")
@@ -203,7 +191,11 @@ pub fn force_workspace_windows_into_layout_mode(
                 .expect("lost connection to niri")
                 .expect("niri rejected FocusColumnLeft");
         }
-        Mode::Scroll => force_scroll_layout(windows, socket, config),
+        Mode::Scroll => {
+            if config.scroll.spread_windows_on_enter {
+                force_scroll_layout(windows, socket, config.scroll.column_width_percentage);
+            }
+        }
     }
 }
 
@@ -235,18 +227,16 @@ mod tests {
     }
 
     #[test]
-    fn plans_tiled_windows_by_column_and_preserves_focus() {
+    fn groups_tiled_workspace_windows_by_column() {
         let top = window(10, Some((2, 1)), false, false);
         let bottom = window(11, Some((2, 2)), true, false);
         let first = window(12, Some((1, 1)), false, false);
         let floating = window(13, None, false, true);
         let windows = vec![&bottom, &floating, &first, &top];
 
-        let plan = plan_scroll_layout(&windows);
+        let grouped_windows = group_workspace_windows_by_column(&windows);
 
-        assert_eq!(plan.columns.get(&1), Some(&vec![(1, 12)]));
-        assert_eq!(plan.columns.get(&2), Some(&vec![(1, 10), (2, 11)]));
-        assert_eq!(plan.window_ids, vec![11, 12, 10]);
-        assert_eq!(plan.focused_window_id, Some(11));
+        assert_eq!(grouped_windows.get(&1), Some(&vec![(1, 12)]));
+        assert_eq!(grouped_windows.get(&2), Some(&vec![(1, 10), (2, 11)]));
     }
 }
