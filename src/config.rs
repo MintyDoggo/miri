@@ -11,6 +11,8 @@ impl MiriDefaults {
     const MASTER_WIDTH_PERCENTAGE: f64 = 50.0;
     const MASTER_MAXIMIZE_SINGLE_WINDOW: bool = true;
     const SCROLL_MAINTAIN_FOCUS_ON_NEW_WINDOW: bool = false;
+    const SCROLL_SPREAD_WINDOWS_ON_ENTER: bool = false;
+    const SCROLL_COLUMN_WIDTH_PERCENTAGE: f64 = 50.0;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,12 +50,16 @@ impl Default for MasterConfig {
 #[serde(default)]
 pub struct ScrollConfig {
     pub maintain_focus_on_new_window: bool,
+    pub spread_windows_on_enter: bool,
+    pub column_width_percentage: f64,
 }
 
 impl Default for ScrollConfig {
     fn default() -> Self {
         Self {
             maintain_focus_on_new_window: MiriDefaults::SCROLL_MAINTAIN_FOCUS_ON_NEW_WINDOW,
+            spread_windows_on_enter: MiriDefaults::SCROLL_SPREAD_WINDOWS_ON_ENTER,
+            column_width_percentage: MiriDefaults::SCROLL_COLUMN_WIDTH_PERCENTAGE,
         }
     }
 }

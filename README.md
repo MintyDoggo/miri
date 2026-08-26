@@ -105,6 +105,10 @@ maximize_single_window = true
 [scroll]
 # If true, focus stays on the current window when new windows open
 maintain_focus_on_new_window = false
+# If true, switching to scroll mode puts every tiled window in its own column
+spread_windows_on_enter = false
+# Width assigned to every column when spreading windows on entry (0-100)
+column_width_percentage = 50.0
 ```
 
 ## Misc
