@@ -3,6 +3,7 @@ pub mod ipc;
 pub mod layout {
     pub mod handler;
     pub mod master;
+    pub mod scroll;
 }
 pub mod miri_overrides;
 pub mod miri_socket;
