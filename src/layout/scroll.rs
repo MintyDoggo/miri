@@ -4,6 +4,7 @@ use niri_ipc::{Action, SizeChange, Window, socket::Socket};
 
 use crate::{niri_ipc_utils::send_action, service_state::ServiceState};
 
+// FIXME: this is unused, i dont really like this config option but we may as well provide it
 pub fn handle_scroll_window_open(service_state: &ServiceState, new_window: &Window, action_socket: &mut Socket) {
     if new_window.is_floating {
         return;

@@ -1,4 +1,4 @@
-use niri_ipc::{Action, Window, socket::Socket};
+use niri_ipc::{Action, SizeChange, Window, socket::Socket};
 
 use crate::{
     config::MiriConfig,
@@ -164,4 +164,50 @@ pub fn handle_master_lose_window(
             send_action(action_socket, Action::FocusColumnLeft {});
         }
     }
+}
+
+pub fn force_master_layout(workspace_windows: Vec<&Window>, socket: &mut Socket, config: &MiriConfig) {
+    let window_count = workspace_windows.len();
+
+    if window_count == 0 {
+        return;
+    }
+
+    if window_count == 1 {
+        if config.master.maximize_single_window {
+            send_action(
+                socket,
+                Action::SetWindowWidth {
+                    id: Some(workspace_windows[0].id),
+                    change: SizeChange::SetProportion(100.0),
+                },
+            );
+        }
+        return;
+    }
+
+    // handle master column
+    send_action(socket, Action::MoveColumnToFirst {});
+    send_action(socket, Action::ConsumeOrExpelWindowLeft { id: None });
+    send_action(
+        socket,
+        Action::SetColumnWidth {
+            change: SizeChange::SetProportion(config.master.column_width_percentage),
+        },
+    );
+
+    // handle child column
+    send_action(socket, Action::FocusColumnRight {});
+    send_action(
+        socket,
+        Action::SetColumnWidth {
+            change: SizeChange::SetProportion(100.0 - config.master.column_width_percentage),
+        },
+    );
+
+    for _ in 1..window_count {
+        send_action(socket, Action::ConsumeWindowIntoColumn {});
+    }
+
+    send_action(socket, Action::FocusColumnLeft {});
 }
