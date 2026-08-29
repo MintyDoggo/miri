@@ -1,10 +1,11 @@
-use niri_ipc::{Action, Request, SizeChange, Window, socket::Socket};
+use niri_ipc::{Action, SizeChange, Window, socket::Socket};
 use std::collections::BTreeMap;
 
 use crate::{
     config::MiriConfig,
     ipc::Mode,
     layout::master::{handle_master_gain_window, handle_master_lose_window},
+    niri_ipc_utils::send_action,
     service_state::{MiriWindow, MiriWorkspace},
 };
 
@@ -42,15 +43,10 @@ fn force_scroll_layout(workspace_windows: Vec<&Window>, socket: &mut Socket, col
             if windows_in_column.len() == 1 {
                 continue;
             }
-            socket
-                .send(Request::Action(Action::FocusWindow { id: anchor_window_id }))
-                .expect("lost connection to niri")
-                .expect("niri rejected FocusWindow while spreading scroll columns");
+
+            send_action(socket, Action::FocusWindow { id: anchor_window_id });
             for _ in 1..windows_in_column.len() {
-                socket
-                    .send(Request::Action(Action::ExpelWindowFromColumn {}))
-                    .expect("lost connection to niri")
-                    .expect("niri rejected ExpelWindowFromColumn");
+                send_action(socket, Action::ExpelWindowFromColumn {});
             }
         }
     }
@@ -60,24 +56,19 @@ fn force_scroll_layout(workspace_windows: Vec<&Window>, socket: &mut Socket, col
         .into_iter()
         .filter(|window| !window.is_floating && window.layout.pos_in_scrolling_layout.is_some())
     {
-        socket
-            .send(Request::Action(Action::SetWindowWidth {
+        send_action(
+            socket,
+            Action::SetWindowWidth {
                 id: Some(window.id),
                 change: SizeChange::SetProportion(column_width_percentage),
-            }))
-            .expect("lost connection to niri")
-            .expect("niri rejected SetWindowWidth for scroll column");
-        socket
-            .send(Request::Action(Action::ResetWindowHeight { id: Some(window.id) }))
-            .expect("lost connection to niri")
-            .expect("niri rejected ResetWindowHeight for scroll window");
+            },
+        );
+
+        send_action(socket, Action::ResetWindowHeight { id: Some(window.id) });
     }
 
     if let Some(id) = focused_window_id {
-        socket
-            .send(Request::Action(Action::FocusWindow { id }))
-            .expect("lost connection to niri")
-            .expect("niri rejected FocusWindow while restoring focus");
+        send_action(socket, Action::FocusWindow { id });
     }
 }
 
@@ -135,61 +126,41 @@ pub fn force_workspace_windows_into_layout_mode(
 
             if window_count == 1 {
                 if config.master.maximize_single_window {
-                    let window = windows[0];
-                    let action = Action::SetWindowWidth {
-                        id: Some(window.id),
-                        change: SizeChange::SetProportion(100.0),
-                    };
-                    socket
-                        .send(Request::Action(action))
-                        .expect("lost connection to niri")
-                        .expect("niri rejected SetWindowWidth for single window");
+                    send_action(
+                        socket,
+                        Action::SetWindowWidth {
+                            id: Some(windows[0].id),
+                            change: SizeChange::SetProportion(100.0),
+                        },
+                    );
                 }
                 return;
             }
 
             // handle master column
-            socket
-                .send(Request::Action(Action::MoveColumnToFirst {}))
-                .expect("lost connection to niri")
-                .expect("niri rejected MoveColumnToFirst");
-
-            socket
-                .send(Request::Action(Action::ConsumeOrExpelWindowLeft { id: None }))
-                .expect("lost connection to niri")
-                .expect("niri rejected ConsumeOrExpelWindowLeft");
-
-            socket
-                .send(Request::Action(Action::SetColumnWidth {
+            send_action(socket, Action::MoveColumnToFirst {});
+            send_action(socket, Action::ConsumeOrExpelWindowLeft { id: None });
+            send_action(
+                socket,
+                Action::SetColumnWidth {
                     change: SizeChange::SetProportion(config.master.column_width_percentage),
-                }))
-                .expect("lost connection to niri")
-                .expect("niri rejected SetColumnWidth for master column");
+                },
+            );
 
             // handle child column
-            socket
-                .send(Request::Action(Action::FocusColumnRight {}))
-                .expect("lost connection to niri")
-                .expect("niri rejected FocusColumnRight");
-
-            socket
-                .send(Request::Action(Action::SetColumnWidth {
+            send_action(socket, Action::FocusColumnRight {});
+            send_action(
+                socket,
+                Action::SetColumnWidth {
                     change: SizeChange::SetProportion(100.0 - config.master.column_width_percentage),
-                }))
-                .expect("lost connection to niri")
-                .expect("niri rejected SetColumnWidth for child column");
+                },
+            );
 
             for _ in 1..window_count {
-                socket
-                    .send(Request::Action(Action::ConsumeWindowIntoColumn {}))
-                    .expect("lost connection to niri")
-                    .expect("niri rejected ConsumeWindowIntoColumn");
+                send_action(socket, Action::ConsumeWindowIntoColumn {});
             }
 
-            socket
-                .send(Request::Action(Action::FocusColumnLeft {}))
-                .expect("lost connection to niri")
-                .expect("niri rejected FocusColumnLeft");
+            send_action(socket, Action::FocusColumnLeft {});
         }
         Mode::Scroll => {
             if config.scroll.spread_windows_on_enter {

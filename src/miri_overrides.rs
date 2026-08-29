@@ -1,15 +1,12 @@
-use niri_ipc::{Action, Request, WorkspaceReferenceArg};
+use niri_ipc::{Action, WorkspaceReferenceArg};
 
 use crate::ipc::{MiriOverride, Mode};
-use crate::niri_ipc_utils::get_focused_window_id;
+use crate::niri_ipc_utils::{get_focused_window_id, send_action};
 use crate::service_state::ServiceState;
 use niri_ipc::socket::Socket;
 
 fn passthrough_action(action: Action, action_socket: &mut Socket) {
-    action_socket
-        .send(Request::Action(action))
-        .expect("lost connection to niri")
-        .expect("niri rejected action");
+    send_action(action_socket, action);
 }
 
 pub fn scroll_passthrough(override_action: MiriOverride, action_socket: &mut Socket) {

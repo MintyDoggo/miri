@@ -1,3 +1,4 @@
+use niri_ipc::Action;
 use niri_ipc::socket::Socket;
 use niri_ipc::{Request, Response, Window, Workspace, state::EventStreamState};
 
@@ -66,5 +67,14 @@ pub fn get_focused_window_id(action_socket: &mut Socket) -> Option<u64> {
     match response {
         Response::FocusedWindow(Some(window)) => Some(window.id),
         _ => None,
+    }
+}
+
+pub fn send_action(socket: &mut Socket, action: Action) {
+    match socket.send(Request::Action(action)).expect("lost connection to niri") {
+        Err(message) => {
+            panic!("Action failed to send: {}", message);
+        }
+        _ => {}
     }
 }

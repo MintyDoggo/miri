@@ -1,20 +1,20 @@
-use niri_ipc::{Action, Request, Window, socket::Socket};
+use niri_ipc::{Action, Window, socket::Socket};
 
 use crate::{
     config::MiriConfig,
+    niri_ipc_utils::send_action,
     service_state::{MiriWindow, MiriWorkspace},
 };
 
 fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socket: &mut Socket) {
     if config.master.maximize_single_window {
-        let full_screen_action = Action::SetWindowWidth {
-            id: Some(single_window_id),
-            change: niri_ipc::SizeChange::SetProportion(100.0),
-        };
-        action_socket
-            .send(Request::Action(full_screen_action))
-            .expect("lost connection to niri")
-            .expect("niri rejected SetWindowWidth");
+        send_action(
+            action_socket,
+            Action::SetWindowWidth {
+                id: Some(single_window_id),
+                change: niri_ipc::SizeChange::SetProportion(100.0),
+            },
+        );
     }
 }
 
@@ -33,20 +33,13 @@ fn move_window_under_focused_window(
     let master_window_count = 1;
     let child_column_count = previous_window_count - master_window_count;
 
-    let focus_action = Action::FocusWindow { id: window_to_move.id };
-    action_socket
-        .send(Request::Action(focus_action))
-        .expect("lost connection to niri")
-        .expect("niri rejected FocusWindow");
+    send_action(action_socket, Action::FocusWindow { id: window_to_move.id });
 
     // example: 4 windows in child column, focused window is at position 2 (1 based indexing). 4 - 2 = 2, move window up twice to be directly under the focused window
     let moves_needed = child_column_count.saturating_sub(focused_window_position.1);
 
     for _ in 0..moves_needed {
-        action_socket
-            .send(Request::Action(Action::MoveWindowUp {}))
-            .expect("lost connection to niri")
-            .expect("niri rejected MoveWindowUp");
+        send_action(action_socket, Action::MoveWindowUp {});
     }
 }
 
@@ -97,10 +90,7 @@ pub fn handle_master_gain_window(
         }
     };
 
-    action_socket
-        .send(Request::Action(move_into_child_column))
-        .expect("lost connection to niri")
-        .expect("niri rejected ConsumeOrExpelWindow");
+    send_action(action_socket, move_into_child_column);
 
     // if the new window went to the right of the child column, move it under our focused window. only do this for window open events
     if let Some(previous_focused_window) = previous_focused_window {
@@ -110,30 +100,26 @@ pub fn handle_master_gain_window(
         }
     }
 
-    let set_child_column_width = Action::SetWindowWidth {
-        id: Some(new_window.id),
-        change: niri_ipc::SizeChange::SetProportion(100.0 - config.master.column_width_percentage),
-    };
-
-    action_socket
-        .send(Request::Action(set_child_column_width))
-        .expect("lost connection to niri")
-        .expect("niri rejected SetWindowWidth for child column");
+    send_action(
+        action_socket,
+        Action::SetWindowWidth {
+            id: Some(new_window.id),
+            change: niri_ipc::SizeChange::SetProportion(100.0 - config.master.column_width_percentage),
+        },
+    );
 
     let master_window = tiled_windows
         .iter()
         .find(|window| window.position == Some((1, 1)))
         .expect("Could not find the master window when adding a new window");
 
-    let set_master_proportion = Action::SetWindowWidth {
-        id: Some(master_window.id),
-        change: niri_ipc::SizeChange::SetProportion(config.master.column_width_percentage),
-    };
-
-    action_socket
-        .send(Request::Action(set_master_proportion))
-        .expect("lost connection to niri")
-        .expect("niri rejected SetWindowWidth for master column");
+    send_action(
+        action_socket,
+        Action::SetWindowWidth {
+            id: Some(master_window.id),
+            change: niri_ipc::SizeChange::SetProportion(config.master.column_width_percentage),
+        },
+    );
 }
 
 pub fn handle_master_lose_window(
@@ -168,19 +154,14 @@ pub fn handle_master_lose_window(
                 return;
             };
 
-            let expel_action = Action::ConsumeOrExpelWindowLeft {
-                id: Some(top_child_window.id),
-            };
-            action_socket
-                .send(Request::Action(expel_action))
-                .expect("lost connection to niri")
-                .expect("niri rejected ConsumeOrExpelWindowLeft");
+            send_action(
+                action_socket,
+                Action::ConsumeOrExpelWindowLeft {
+                    id: Some(top_child_window.id),
+                },
+            );
 
-            let focus_action = Action::FocusColumnLeft {};
-            action_socket
-                .send(Request::Action(focus_action))
-                .expect("lost connection to niri")
-                .expect("niri rejected FocusColumnLeft");
+            send_action(action_socket, Action::FocusColumnLeft {});
         }
     }
 }

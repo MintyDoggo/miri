@@ -2,6 +2,7 @@ use niri_ipc::{Action, Request, Window, socket::Socket};
 
 use crate::service_state::ServiceState;
 
+// TODO: i think this is not used anywhere for some reason
 pub fn handle_scroll_window_open(service_state: &ServiceState, new_window: &Window, action_socket: &mut Socket) {
     if new_window.is_floating {
         return;
