@@ -21,16 +21,11 @@ impl ServiceState {
     }
 
     // determines if the window was spawned, or just simply moved/changed
-    pub fn window_is_new(&self, window_id: &u64) -> bool {
-        let previous_workspace = self
-            .previous_layout
-            .get_focused_workspace()
-            .expect("Could not get previous focused workspace");
-        let current_workspace = self
-            .current_layout
-            .get_focused_workspace()
-            .expect("Could not get current focused workspace");
-
+    pub fn window_is_new(
+        previous_workspace: &MiriWorkspace,
+        current_workspace: &MiriWorkspace,
+        window_id: &u64,
+    ) -> bool {
         // check if we moved to a new workspace
         if previous_workspace.id != current_workspace.id {
             return false;

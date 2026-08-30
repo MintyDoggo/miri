@@ -152,38 +152,31 @@ fn handle_niri_event(
                 .get_focused_workspace()
                 .expect("Could not get current focused workspace");
 
-            if service_state.window_is_new(&window.id) {
+            let previous_workspace = service_state
+                .previous_layout
+                .get_focused_workspace()
+                .expect("Could not get previous focused workspace");
+
+            if ServiceState::window_is_new(previous_workspace, current_workspace, &window.id) {
                 println!("[EVENT]: window opened");
                 handle_workspace_gain_window(
                     current_workspace,
                     window,
                     &service_state.config,
                     action_socket,
-                    service_state
-                        .previous_layout
-                        .get_focused_workspace()
-                        .expect("Could not get previous focused workspace")
-                        .get_focused_window(),
+                    previous_workspace.get_focused_window(),
                 );
             } else {
                 println!("[EVENT]: window changed");
-                let previous_focused_workspace = service_state
-                    .previous_layout
-                    .get_focused_workspace()
-                    .expect("Could not get previous focused workspace"); // FIXME: this should not crash, just return or something
 
-                let window_moved_into_workspace = previous_focused_workspace.id
-                    != service_state
-                        .current_layout
-                        .get_focused_workspace()
-                        .expect("Could not get current focused workspace")
-                        .id;
+                let window_moved_into_workspace = previous_workspace.id != current_workspace.id;
 
                 if window_moved_into_workspace {
                     println!("[EVENT]: window moved to new workspace");
+                    // assuming the workspace has changed, get the state of the previous focused workspace, but on the current state (this is hard to think about but it makes sense)
                     let previous_focused_workspace_current_state = service_state.current_layout.workspaces
                         .values()
-                        .find(|workspace| workspace.id == previous_focused_workspace.id)
+                        .find(|workspace| workspace.id == previous_workspace.id)
                         .expect("Could not get previous_focused_workspace_current_state. Somehow, a workspace was destroyed when a window moved to another workspace");
 
                     handle_workspace_lose_window(
@@ -196,7 +189,7 @@ fn handle_niri_event(
                 }
 
                 // handle window switching from tiling->floating and floating->tiling
-                if let Some(previous_window) = previous_focused_workspace
+                if let Some(previous_window) = previous_workspace
                     .windows
                     .iter()
                     .find(|previous_window| previous_window.id == window.id)
@@ -207,7 +200,7 @@ fn handle_niri_event(
                             window,
                             &service_state.config,
                             action_socket,
-                            previous_focused_workspace.get_focused_window(),
+                            previous_workspace.get_focused_window(),
                         ),
                         (false, true) => {
                             handle_workspace_lose_window(current_workspace, &service_state.config, action_socket)
