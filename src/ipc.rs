@@ -1,9 +1,11 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand };
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 
 use std::path::PathBuf;
+
+use crate::service_state::Mode;
 
 pub fn miri_socket_path() -> PathBuf {
     let runtime_dir =
@@ -86,34 +88,6 @@ pub enum MiriOverride {
 #[derive(Debug, Subcommand, Serialize, Deserialize)]
 pub enum MiriGet {
     FocusedWorkspaceMode,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
-pub enum Mode {
-    Scroll,
-    Master,
-}
-
-impl Mode {
-    pub fn cycle(&mut self) {
-        *self = match *self {
-            Mode::Scroll => Mode::Master,
-            Mode::Master => Mode::Scroll,
-        };
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Mode::Scroll => "scroll",
-            Mode::Master => "master",
-        }
-    }
-}
-
-impl Default for Mode {
-    fn default() -> Self {
-        Mode::Scroll
-    }
 }
 
 #[derive(Debug)]

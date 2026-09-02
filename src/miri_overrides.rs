@@ -1,8 +1,8 @@
 use niri_ipc::{Action, WorkspaceReferenceArg};
 
-use crate::ipc::{MiriOverride, Mode};
+use crate::ipc::MiriOverride;
 use crate::niri_ipc_utils::{get_focused_window_id, send_action};
-use crate::service_state::ServiceState;
+use crate::service_state::{Mode, ServiceState};
 use niri_ipc::socket::Socket;
 
 fn passthrough_action(action: Action, action_socket: &mut Socket) {

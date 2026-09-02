@@ -2,12 +2,11 @@ use niri_ipc::{Window, socket::Socket};
 
 use crate::{
     config::MiriConfig,
-    ipc::Mode,
     layout::{
         master::{force_master_layout, handle_master_gain_window, handle_master_lose_window},
         scroll::force_scroll_layout,
     },
-    service_state::{MiriWindow, MiriWorkspace},
+    service_state::{MiriWindow, MiriWorkspace, Mode},
 };
 
 pub fn handle_workspace_gain_window(

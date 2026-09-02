@@ -5,7 +5,7 @@ use niri_ipc::{Request, socket::Socket};
 use tokio::sync::mpsc::Sender;
 
 use crate::config::MiriConfig;
-use crate::ipc::{Command, IPCMessage, IPCMessageContainer, MiriAction, MiriGet, Mode};
+use crate::ipc::{Command, IPCMessage, IPCMessageContainer, MiriAction, MiriGet};
 use crate::layout::handler::{
     force_workspace_windows_into_layout_mode, handle_workspace_gain_window, handle_workspace_lose_window,
 };
@@ -13,7 +13,7 @@ use crate::miri_overrides::handle_override;
 use crate::miri_socket::MiriListener;
 use crate::niri_ipc_utils::{get_windows_on_focused_workspace, warn_if_version_mismatch};
 use crate::niri_socket::NiriSocket;
-use crate::service_state::{ServiceState, copy_event_state_to_layout};
+use crate::service_state::{Mode, ServiceState, copy_event_state_to_layout};
 trait CliRunner {
     fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState);
 }

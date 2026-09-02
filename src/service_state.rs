@@ -1,7 +1,9 @@
+use clap::ValueEnum;
 use niri_ipc::state::EventStreamState;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{config::MiriConfig, ipc::Mode, niri_ipc_utils::get_focused_window};
+use crate::{config::MiriConfig, niri_ipc_utils::get_focused_window};
 
 pub struct ServiceState {
     pub previous_layout: Layout,
@@ -80,6 +82,34 @@ impl Layout {
             .expect("Could not get focused workspace when attempting to set mode");
 
         focused_workspace.mode = mode;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+pub enum Mode {
+    Scroll,
+    Master,
+}
+
+impl Mode {
+    pub fn cycle(&mut self) {
+        *self = match *self {
+            Mode::Scroll => Mode::Master,
+            Mode::Master => Mode::Scroll,
+        };
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Mode::Scroll => "scroll",
+            Mode::Master => "master",
+        }
+    }
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Mode::Scroll
     }
 }
 
