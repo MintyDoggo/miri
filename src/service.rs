@@ -6,9 +6,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::config::MiriConfig;
 use crate::ipc::{Command, IPCMessage, IPCMessageContainer, MiriAction, MiriGet};
-use crate::layout::handler::{
-    force_workspace_windows_into_layout_mode, handle_workspace_gain_window, handle_workspace_lose_window,
-};
+use crate::layout::WorkspaceLayout;
 use crate::miri_overrides::handle_override;
 use crate::miri_socket::MiriListener;
 use crate::niri_ipc_utils::{get_windows_on_focused_workspace, warn_if_version_mismatch};
@@ -33,37 +31,27 @@ impl CliRunner for Command {
 
 impl CliRunner for MiriAction {
     fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
+        // FIXME: i dont like the expect here
+        let focused_workspace = service_state
+            .current_layout
+            .get_focused_workspace_mut()
+            .expect("Could not get current focused workspace");
+        let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
+            eprintln!("Could not get workspace windows");
+            return;
+        };
+
         match self {
             MiriAction::CycleFocusedWorkspaceMode => {
                 println!("[ACTION]: CycleFocusedWorkspaceMode");
-                let focused_workspace = service_state
-                    .current_layout
-                    .get_focused_workspace_mut()
-                    .expect("Could not get current focused workspace");
                 focused_workspace.mode.cycle();
-                let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
-                    eprintln!("Could not get workspace windows");
-                    return;
-                };
-                force_workspace_windows_into_layout_mode(
-                    workspace_windows,
-                    action_socket,
-                    &service_state.config,
-                    focused_workspace.mode,
-                )
             }
             MiriAction::SetFocusedWorkspaceMode { mode } => {
                 println!("[ACTION]: SetFocusedWorkspaceMode to {:?}", mode);
-                service_state.current_layout.set_focused_workspace_mode(*mode);
-
-                let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
-                    eprintln!("Could not get workspace windows");
-                    return;
-                };
-
-                force_workspace_windows_into_layout_mode(workspace_windows, action_socket, &service_state.config, *mode)
+                focused_workspace.mode = *mode;
             }
         }
+        focused_workspace.force_mode(workspace_windows, action_socket, &service_state.config);
     }
 }
 
@@ -159,8 +147,7 @@ fn handle_niri_event(
 
             if ServiceState::window_is_new(previous_workspace, current_workspace, &window.id) {
                 println!("[EVENT]: window opened");
-                handle_workspace_gain_window(
-                    current_workspace,
+                current_workspace.gain_window(
                     window,
                     &service_state.config,
                     action_socket,
@@ -179,12 +166,8 @@ fn handle_niri_event(
                         .find(|workspace| workspace.id == previous_workspace.id)
                         .expect("Could not get previous_focused_workspace_current_state. Somehow, a workspace was destroyed when a window moved to another workspace");
 
-                    handle_workspace_lose_window(
-                        previous_focused_workspace_current_state,
-                        &service_state.config,
-                        action_socket,
-                    );
-                    handle_workspace_gain_window(current_workspace, window, &service_state.config, action_socket, None);
+                    previous_focused_workspace_current_state.lose_window(&service_state.config, action_socket);
+                    current_workspace.gain_window(window, &service_state.config, action_socket, None);
                     return;
                 }
 
@@ -195,16 +178,13 @@ fn handle_niri_event(
                     .find(|previous_window| previous_window.id == window.id)
                 {
                     match (previous_window.is_floating, window.is_floating) {
-                        (true, false) => handle_workspace_gain_window(
-                            current_workspace,
+                        (true, false) => current_workspace.gain_window(
                             window,
                             &service_state.config,
                             action_socket,
                             previous_workspace.get_focused_window(),
                         ),
-                        (false, true) => {
-                            handle_workspace_lose_window(current_workspace, &service_state.config, action_socket)
-                        }
+                        (false, true) => current_workspace.lose_window(&service_state.config, action_socket),
                         _ => {}
                     }
                 };
@@ -218,7 +198,7 @@ fn handle_niri_event(
                 .expect("Could not get current focused workspace");
             let current_mode = current_workspace.mode;
             match current_mode {
-                Mode::Master => handle_workspace_lose_window(current_workspace, &service_state.config, action_socket),
+                Mode::Master => current_workspace.lose_window(&service_state.config, action_socket),
                 Mode::Scroll => {
                     return;
                 }
