@@ -68,20 +68,18 @@ impl Layout {
         }
     }
 
-    pub fn get_focused_workspace(&self) -> Option<&MiriWorkspace> {
-        self.workspaces.values().find(|workspace| workspace.is_focused)
+    pub fn get_focused_workspace(&self) -> &MiriWorkspace {
+        self.workspaces
+            .values()
+            .find(|workspace| workspace.is_focused)
+            .expect("Could not find focused workspace")
     }
 
-    pub fn get_focused_workspace_mut(&mut self) -> Option<&mut MiriWorkspace> {
-        self.workspaces.values_mut().find(|workspace| workspace.is_focused)
-    }
-
-    pub fn set_focused_workspace_mode(&mut self, mode: Mode) {
-        let focused_workspace = self
-            .get_focused_workspace_mut()
-            .expect("Could not get focused workspace when attempting to set mode");
-
-        focused_workspace.mode = mode;
+    pub fn get_focused_workspace_mut(&mut self) -> &mut MiriWorkspace {
+        self.workspaces
+            .values_mut()
+            .find(|workspace| workspace.is_focused)
+            .expect("Could not find focused workspace")
     }
 }
 

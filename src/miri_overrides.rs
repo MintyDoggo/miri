@@ -101,13 +101,7 @@ fn master_override(override_action: MiriOverride, action_socket: &mut Socket) {
 }
 
 pub fn handle_override(override_action: MiriOverride, action_socket: &mut Socket, service_state: &ServiceState) {
-    let current_workspace = match service_state.current_layout.get_focused_workspace() {
-        Some(ws) => ws,
-        None => {
-            eprintln!("Could not get focused workspace for override");
-            return;
-        }
-    };
+    let current_workspace = service_state.current_layout.get_focused_workspace();
 
     match current_workspace.mode {
         Mode::Scroll => scroll_passthrough(override_action, action_socket),

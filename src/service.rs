@@ -32,10 +32,7 @@ impl CliRunner for Command {
 impl CliRunner for MiriAction {
     fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
         // FIXME: i dont like the expect here
-        let focused_workspace = service_state
-            .current_layout
-            .get_focused_workspace_mut()
-            .expect("Could not get current focused workspace");
+        let focused_workspace = service_state.current_layout.get_focused_workspace_mut();
         let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
             eprintln!("Could not get workspace windows");
             return;
@@ -135,15 +132,9 @@ fn handle_niri_event(
                 return;
             }
 
-            let current_workspace = service_state
-                .current_layout
-                .get_focused_workspace()
-                .expect("Could not get current focused workspace");
+            let current_workspace = service_state.current_layout.get_focused_workspace();
 
-            let previous_workspace = service_state
-                .previous_layout
-                .get_focused_workspace()
-                .expect("Could not get previous focused workspace");
+            let previous_workspace = service_state.previous_layout.get_focused_workspace();
 
             if ServiceState::window_is_new(previous_workspace, current_workspace, &window.id) {
                 println!("[EVENT]: window opened");
@@ -192,10 +183,7 @@ fn handle_niri_event(
         }
         niri_ipc::Event::WindowClosed { id: _ } => {
             println!("[EVENT]: window closed");
-            let current_workspace = service_state
-                .current_layout
-                .get_focused_workspace()
-                .expect("Could not get current focused workspace");
+            let current_workspace = service_state.current_layout.get_focused_workspace();
             current_workspace.lose_window(&service_state.config, action_socket);
         }
         niri_ipc::Event::WindowsChanged { windows: _ } => {
