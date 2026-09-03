@@ -11,7 +11,7 @@ use crate::miri_overrides::handle_override;
 use crate::miri_socket::MiriListener;
 use crate::niri_ipc_utils::{get_windows_on_focused_workspace, warn_if_version_mismatch};
 use crate::niri_socket::NiriSocket;
-use crate::service_state::{Mode, ServiceState, copy_event_state_to_layout};
+use crate::service_state::{ServiceState, copy_event_state_to_layout};
 trait CliRunner {
     fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState);
 }
@@ -196,13 +196,7 @@ fn handle_niri_event(
                 .current_layout
                 .get_focused_workspace()
                 .expect("Could not get current focused workspace");
-            let current_mode = current_workspace.mode;
-            match current_mode {
-                Mode::Master => current_workspace.lose_window(&service_state.config, action_socket),
-                Mode::Scroll => {
-                    return;
-                }
-            }
+            current_workspace.lose_window(&service_state.config, action_socket);
         }
         niri_ipc::Event::WindowsChanged { windows: _ } => {
             println!("[EVENT]: windows changed");
