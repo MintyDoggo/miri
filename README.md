@@ -35,6 +35,28 @@ spawn-at-startup "miri" "service" "start"
 > [!NOTE]
 > The installer script also has an uninstall option, so feel free to try it out commitment free!
 
+### Nix
+The project also provides a flake, which can be imported as follows in the flake inputs:
+```nix
+  miri = {
+    url = "github:MintyDoggo/miri";
+    inputs.nixpkgs.follows = "nixpkgs"; # optional
+    inputs.fenix.follows = "fenix"; # optional 
+    inputs.flake-utils.follows = "flake-utils"; # optional
+  };
+```
+
+The package can then be used and auto-started when niri launches, for example:
+```nix
+programs.niri = {
+  settings = {
+    spawn-at-startup = [
+      { argv = [ (lib.getExe miri.packages.${system}.default) "service" "start"]; }
+      ];
+    };
+};
+```
+
 ## Keybinds setup
 All miri actions can be spawned via `miri action <action-name>`. You can list all available actions by running `miri action`. To add an action to a keybind, edit your niri config and put the spawn command for the keybind you want
 **Example:**
