@@ -27,6 +27,11 @@ curl -fsSL https://github.com/MintyDoggo/miri/releases/latest/download/install.s
 ```
 Once installed, the `miri` command will be available. Be sure `~/.local/bin` is in your `PATH`
 
+Systemd is optional. To start miri, run `miri service start`. For automatic startup, add to your niri config:
+```kdl
+spawn-at-startup "miri" "service" "start"
+```
+
 > [!NOTE]
 > The installer script also has an uninstall option, so feel free to try it out commitment free!
 

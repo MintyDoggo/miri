@@ -84,8 +84,10 @@ select_menu() {
 
 # --- checks ---
 command -v curl >/dev/null || die "curl is required"
-command -v systemctl >/dev/null || die "systemctl is required"
-systemctl --user show-environment >/dev/null 2>&1 || die "systemd user session not available"
+SYSTEMD_AVAILABLE=false
+if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
+  SYSTEMD_AVAILABLE=true
+fi
 
 # ascii art greeter (a mess)
 echo ""
@@ -106,10 +108,15 @@ echo ""
 
 if [[ "$ACTION" == "Install miri" ]]; then
 
-  select_menu "${BOLD}Set up the systemd user service?${RESET}" \
-    "Yes (recommended)" \
-    "No"
-  SETUP_SERVICE="$MENU_RESULT"
+  SETUP_SERVICE="No"
+  if [[ "$SYSTEMD_AVAILABLE" == true ]]; then
+    select_menu "${BOLD}Set up the systemd user service?${RESET}" \
+      "Yes (recommended)" \
+      "No"
+    SETUP_SERVICE="$MENU_RESULT"
+  else
+    info "Systemd user session not available; skipping systemd service setup"
+  fi
   echo ""
 
   # --- fetch release manifest ---
@@ -162,22 +169,28 @@ if [[ "$ACTION" == "Install miri" ]]; then
   else
     info "Skipped systemd service setup"
     success "Done. Binary installed to $INSTALL_DIR/miri"
+    info 'To start inside a niri session: miri service start'
+    info 'To start automatically, add to your niri config: spawn-at-startup "miri" "service" "start"'
   fi
 
 elif [[ "$ACTION" == "Uninstall miri" ]]; then
 
-  info "Stopping miri.service if running"
-  systemctl --user stop miri.service 2>/dev/null || true
+  if [[ "$SYSTEMD_AVAILABLE" == true ]]; then
+    info "Stopping miri.service if running"
+    systemctl --user stop miri.service 2>/dev/null || true
 
-  info "Disabling miri.service"
-  systemctl --user disable miri.service 2>/dev/null || true
+    info "Disabling miri.service"
+    systemctl --user disable miri.service 2>/dev/null || true
+  fi
 
   [[ -L "$WANTS_DIR/miri.service" ]] && rm -f "$WANTS_DIR/miri.service" && info "Removed symlink from niri.service.wants"
   [[ -f "$SERVICE_DIR/miri.service" ]] && rm -f "$SERVICE_DIR/miri.service" && info "Removed miri.service"
   [[ -f "$INSTALL_DIR/miri" ]] && rm -f "$INSTALL_DIR/miri" && info "Removed $INSTALL_DIR/miri"
 
-  info "Reloading systemd user daemon"
-  systemctl --user daemon-reload
+  if [[ "$SYSTEMD_AVAILABLE" == true ]]; then
+    info "Reloading systemd user daemon"
+    systemctl --user daemon-reload
+  fi
 
   success "Done. Miri has been uninstalled"
 
