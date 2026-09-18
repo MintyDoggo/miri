@@ -105,6 +105,11 @@ default_workspace_mode = "master"
 column_width_percentage = 50.0
 # If true, single windows take full width
 maximize_single_window = true
+# If maximize_single_window is true, sets the maximum width of the window in logical pixels. 0 = no limit
+single_window_max_width = 0.0
+# If maximize_single_window is true, constrains width of the window as a ratio of its width to height (e.g. 1.8 ≈ 16:9). 0 = no limit
+# The smaller of single_window_max_width and single_window_aspect_ratio wins
+single_window_aspect_ratio = 0.0
 
 # Settings for the scroll layout mode
 [scroll]
@@ -115,6 +120,9 @@ spread_windows_on_enter = false
 # Width assigned to every column when spreading windows on entry (0-100)
 column_width_percentage = 50.0
 ```
+
+> [!NOTE]
+> A lone window that is narrower than the screen sits at the left edge by default. To keep it in the middle, set `always-center-single-column` in your niri config's `layout` block
 
 ## Misc
 ASCII art for installer
