@@ -25,6 +25,11 @@ impl CliRunner for MiriAction {
                     eprintln!("Failed to send action to miri service: {:?}", e);
                 }
             }
+            MiriAction::WindowToggleScratchPad { window_id: _ } => {
+                if let Err(e) = send_command_to_miri_service(Command::Action { action: self.clone() }) {
+                    eprintln!("Failed to send action to miri service: {:?}", e);
+                }
+            }
         }
     }
 }

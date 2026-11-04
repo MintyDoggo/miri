@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand };
+use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::os::unix::net::UnixStream;
@@ -68,6 +68,7 @@ pub enum MiriServiceCommand {
 pub enum MiriAction {
     CycleFocusedWorkspaceMode,
     SetFocusedWorkspaceMode { mode: Mode },
+    WindowToggleScratchPad { window_id: u8 },
 }
 
 #[derive(Debug, Clone, Subcommand, Serialize, Deserialize)]

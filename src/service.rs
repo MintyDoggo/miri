@@ -47,6 +47,10 @@ impl CliRunner for MiriAction {
                 println!("[ACTION]: SetFocusedWorkspaceMode to {:?}", mode);
                 focused_workspace.mode = *mode;
             }
+            MiriAction::WindowToggleScratchPad { window_id } => {
+                println!("[ACTION]: WindowToggleScratchPad {:?}", window_id);
+                // TODO: add the implementation here
+            }
         }
         focused_workspace.force_mode(workspace_windows, action_socket, &service_state.config);
     }
