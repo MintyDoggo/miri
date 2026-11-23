@@ -41,7 +41,7 @@
           baseComponents
           ++ [
             "rust-src"
-            "fmt"
+            "rustfmt"
             "rust-analyzer"
           ]
         );
@@ -59,7 +59,7 @@
         };
 
         # For `nix develop`:
-        shells.default = pkgs.mkShell {
+        devShells.default = pkgs.mkShell {
           nativeBuildInputs = [
             devToolchain
           ];
