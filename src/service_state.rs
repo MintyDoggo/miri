@@ -22,23 +22,6 @@ impl ServiceState {
         }
     }
 
-    // determines if the window was spawned, or just simply moved/changed
-    pub fn window_is_new(
-        previous_workspace: &MiriWorkspace,
-        current_workspace: &MiriWorkspace,
-        window_id: &u64,
-    ) -> bool {
-        // check if we moved to a new workspace
-        if previous_workspace.id != current_workspace.id {
-            return false;
-        }
-
-        match previous_workspace.windows.iter().find(|window| window.id == *window_id) {
-            Some(_) => return false,
-            None => return true,
-        };
-    }
-
     // sets workspace layout to scroll if there are already windows on the workspace. meant to be used on service start/restart
     pub fn initialize_workspace_modes(&mut self) {
         for workspace in self.previous_layout.workspaces.values_mut() {
@@ -80,6 +63,13 @@ impl Layout {
             .values_mut()
             .find(|workspace| workspace.is_focused)
             .expect("Could not find focused workspace")
+    }
+
+    // the workspace that holds the window, which is not necessarily the focused workspace
+    pub fn get_window_workspace(&self, window_id: u64) -> Option<&MiriWorkspace> {
+        self.workspaces
+            .values()
+            .find(|workspace| workspace.windows.iter().any(|window| window.id == window_id))
     }
 }
 

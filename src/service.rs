@@ -127,64 +127,70 @@ fn handle_niri_event(
 
     match event {
         niri_ipc::Event::WindowOpenedOrChanged { ref window } => {
-            if window.workspace_id.is_none() {
+            let Some(window_workspace_id) = window.workspace_id else {
                 // TODO: figure out how to handle this. this means its a window we are dragging (and possibly other cases)
+                return;
+            };
+
+            // use the workspace the window is on, not the focused workspace. windows on other workspaces also send this event (title changes, etc)
+            let Some(current_workspace) = service_state.current_layout.workspaces.get(&window_workspace_id) else {
+                eprintln!("Could not find workspace {} of window {}", window_workspace_id, window.id);
+                return;
+            };
+
+            let Some(previous_workspace) = service_state.previous_layout.get_window_workspace(window.id) else {
+                println!("[EVENT]: window opened");
+                let previous_focused_window = service_state
+                    .previous_layout
+                    .workspaces
+                    .get(&window_workspace_id)
+                    .and_then(|workspace| workspace.get_focused_window());
+
+                current_workspace.gain_window(window, &service_state.config, action_socket, previous_focused_window);
+                return;
+            };
+
+            println!("[EVENT]: window changed");
+
+            if previous_workspace.id != current_workspace.id {
+                println!("[EVENT]: window moved to new workspace");
+                // get the state of the workspace the window left, but on the current state
+                if let Some(left_workspace_current_state) =
+                    service_state.current_layout.workspaces.get(&previous_workspace.id)
+                {
+                    left_workspace_current_state.lose_window(&service_state.config, action_socket);
+                }
+                current_workspace.gain_window(window, &service_state.config, action_socket, None);
                 return;
             }
 
-            let current_workspace = service_state.current_layout.get_focused_workspace();
-
-            let previous_workspace = service_state.previous_layout.get_focused_workspace();
-
-            if ServiceState::window_is_new(previous_workspace, current_workspace, &window.id) {
-                println!("[EVENT]: window opened");
-                current_workspace.gain_window(
-                    window,
-                    &service_state.config,
-                    action_socket,
-                    previous_workspace.get_focused_window(),
-                );
-            } else {
-                println!("[EVENT]: window changed");
-
-                let window_moved_into_workspace = previous_workspace.id != current_workspace.id;
-
-                if window_moved_into_workspace {
-                    println!("[EVENT]: window moved to new workspace");
-                    // assuming the workspace has changed, get the state of the previous focused workspace, but on the current state (this is hard to think about but it makes sense)
-                    let previous_focused_workspace_current_state = service_state.current_layout.workspaces
-                        .values()
-                        .find(|workspace| workspace.id == previous_workspace.id)
-                        .expect("Could not get previous_focused_workspace_current_state. Somehow, a workspace was destroyed when a window moved to another workspace");
-
-                    previous_focused_workspace_current_state.lose_window(&service_state.config, action_socket);
-                    current_workspace.gain_window(window, &service_state.config, action_socket, None);
-                    return;
+            // handle window switching from tiling->floating and floating->tiling
+            if let Some(previous_window) = previous_workspace
+                .windows
+                .iter()
+                .find(|previous_window| previous_window.id == window.id)
+            {
+                match (previous_window.is_floating, window.is_floating) {
+                    (true, false) => current_workspace.gain_window(
+                        window,
+                        &service_state.config,
+                        action_socket,
+                        previous_workspace.get_focused_window(),
+                    ),
+                    (false, true) => current_workspace.lose_window(&service_state.config, action_socket),
+                    _ => {}
                 }
-
-                // handle window switching from tiling->floating and floating->tiling
-                if let Some(previous_window) = previous_workspace
-                    .windows
-                    .iter()
-                    .find(|previous_window| previous_window.id == window.id)
-                {
-                    match (previous_window.is_floating, window.is_floating) {
-                        (true, false) => current_workspace.gain_window(
-                            window,
-                            &service_state.config,
-                            action_socket,
-                            previous_workspace.get_focused_window(),
-                        ),
-                        (false, true) => current_workspace.lose_window(&service_state.config, action_socket),
-                        _ => {}
-                    }
-                };
-            }
+            };
         }
-        niri_ipc::Event::WindowClosed { id: _ } => {
+        niri_ipc::Event::WindowClosed { id } => {
             println!("[EVENT]: window closed");
-            let current_workspace = service_state.current_layout.get_focused_workspace();
-            current_workspace.lose_window(&service_state.config, action_socket);
+            // the closed window is gone from the current layout, so find where it was in the previous layout
+            let Some(previous_workspace) = service_state.previous_layout.get_window_workspace(id) else {
+                return;
+            };
+            if let Some(current_workspace) = service_state.current_layout.workspaces.get(&previous_workspace.id) {
+                current_workspace.lose_window(&service_state.config, action_socket);
+            }
         }
         niri_ipc::Event::WindowsChanged { windows: _ } => {
             println!("[EVENT]: windows changed");
