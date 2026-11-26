@@ -3,39 +3,57 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use niri_ipc::{Request, socket::Socket};
 
 use tokio::sync::mpsc::Sender;
+use tokio::sync::oneshot;
 
 use crate::config::MiriConfig;
-use crate::ipc::{Command, IPCMessage, IPCMessageContainer, MiriAction, MiriGet};
+use crate::ipc::{Command, IPCMessage, IPCMessageContainer, IPCResponseContainer, MiriAction, MiriGet, MiriResponse};
 use crate::layout::WorkspaceLayout;
 use crate::miri_overrides::handle_override;
 use crate::miri_socket::MiriListener;
 use crate::niri_ipc_utils::{get_windows_on_focused_workspace, warn_if_version_mismatch};
 use crate::niri_socket::NiriSocket;
 use crate::service_state::{ServiceState, copy_event_state_to_layout};
+
 trait CliRunner {
-    fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState);
+    fn run(
+        &self,
+        action_socket: &mut Socket,
+        event_state: &EventStreamState,
+        service_state: &mut ServiceState,
+    ) -> MiriResponse;
 }
 
 impl CliRunner for Command {
-    fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
+    fn run(
+        &self,
+        action_socket: &mut Socket,
+        event_state: &EventStreamState,
+        service_state: &mut ServiceState,
+    ) -> MiriResponse {
         match self {
-            Command::Service { service_command: _ } => {}
+            Command::Service { service_command: _ } => MiriResponse::Ok,
             Command::Action { action } => action.run(action_socket, event_state, service_state),
             Command::Get { get } => get.run(action_socket, event_state, service_state),
             Command::Override { override_action } => {
-                handle_override(override_action.clone(), action_socket, service_state)
+                handle_override(override_action.clone(), action_socket, service_state);
+                MiriResponse::Ok
             }
         }
     }
 }
 
 impl CliRunner for MiriAction {
-    fn run(&self, action_socket: &mut Socket, event_state: &EventStreamState, service_state: &mut ServiceState) {
+    fn run(
+        &self,
+        action_socket: &mut Socket,
+        event_state: &EventStreamState,
+        service_state: &mut ServiceState,
+    ) -> MiriResponse {
         // FIXME: i dont like the expect here
         let focused_workspace = service_state.current_layout.get_focused_workspace_mut();
         let Some(workspace_windows) = get_windows_on_focused_workspace(event_state) else {
             eprintln!("Could not get workspace windows");
-            return;
+            return MiriResponse::Error("Could not get workspace windows".to_string());
         };
 
         match self {
@@ -49,21 +67,29 @@ impl CliRunner for MiriAction {
             }
         }
         focused_workspace.force_mode(workspace_windows, action_socket, &service_state.config);
+        MiriResponse::Ok
     }
 }
 
 impl CliRunner for MiriGet {
-    fn run(&self, _action_socket: &mut Socket, _event_state: &EventStreamState, _service_state: &mut ServiceState) {
+    fn run(
+        &self,
+        _action_socket: &mut Socket,
+        _event_state: &EventStreamState,
+        service_state: &mut ServiceState,
+    ) -> MiriResponse {
         match self {
             MiriGet::FocusedWorkspaceMode => {
                 println!("[GET]: FocusedWorkspaceMode");
+                let mode = service_state.current_layout.get_focused_workspace().mode;
+                MiriResponse::FocusedWorkspaceMode(mode)
             }
         }
     }
 }
 
 enum MiriEvent {
-    CliCommand(Command),
+    CliCommand(Command, oneshot::Sender<MiriResponse>),
     NiriEvent(niri_ipc::Event),
     // i can easily add other event listeners here such as mouse, keyboard, etc. these would be part of THIS process
 }
@@ -76,9 +102,33 @@ async fn run_cli_listener(tx: Sender<MiriEvent>) {
         while let Some(line) = socket.read().await {
             match serde_json::from_str::<IPCMessageContainer>(&line) {
                 Ok(container) => {
+                    if !container.version_matches() {
+                        eprintln!(
+                            "[Warning]: miri cli version mismatch! This service is {}, but a command came from {}",
+                            env!("CARGO_PKG_VERSION"),
+                            container.version
+                        );
+                    }
+
                     let IPCMessage::CliExecute(command) = container.message;
-                    if let Err(e) = tx.send(MiriEvent::CliCommand(command)).await {
+                    let (response_tx, response_rx) = oneshot::channel();
+
+                    if let Err(e) = tx.send(MiriEvent::CliCommand(command, response_tx)).await {
                         eprintln!("Failed to send command to main loop: {}", e);
+                        continue;
+                    }
+
+                    let response = match response_rx.await {
+                        Ok(response) => response,
+                        Err(e) => {
+                            eprintln!("Failed to receive response from main loop: {}", e);
+                            MiriResponse::Error("The miri service failed to handle the command".to_string())
+                        }
+                    };
+
+                    match serde_json::to_string(&IPCResponseContainer::new(response)) {
+                        Ok(json) => socket.write(&json).await,
+                        Err(e) => eprintln!("Failed to serialize response: {}", e),
                     }
                 }
                 Err(e) => eprintln!("Failed to parse message '{}': {}", line.trim(), e),
@@ -207,8 +257,11 @@ pub async fn main_service() {
 
     while let Some(event) = rx.recv().await {
         match event {
-            MiriEvent::CliCommand(command) => {
-                command.run(&mut action_socket, &event_state, &mut service_state);
+            MiriEvent::CliCommand(command, response_tx) => {
+                let response = command.run(&mut action_socket, &event_state, &mut service_state);
+                if response_tx.send(response).is_err() {
+                    eprintln!("Failed to send response back to the cli listener: the client disconnected");
+                }
             }
             MiriEvent::NiriEvent(event) => {
                 handle_niri_event(event, &mut event_state, &mut service_state, &mut action_socket)

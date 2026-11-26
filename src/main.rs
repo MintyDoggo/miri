@@ -1,6 +1,9 @@
 use clap::Parser;
 use miri::{
-    ipc::{Args, Command, MiriAction, MiriGet, MiriOverride, MiriServiceCommand, send_command_to_miri_service},
+    ipc::{
+        Args, Command, MiriAction, MiriGet, MiriOverride, MiriResponse, MiriServiceCommand, MiriServiceError,
+        send_command_to_miri_service,
+    },
     miri_overrides,
     service::main_service,
 };
@@ -17,12 +20,12 @@ impl CliRunner for MiriAction {
                 if let Err(e) = send_command_to_miri_service(Command::Action {
                     action: MiriAction::CycleFocusedWorkspaceMode,
                 }) {
-                    eprintln!("Failed to send action to miri service: {:?}", e);
+                    eprintln!("{}", e);
                 }
             }
             MiriAction::SetFocusedWorkspaceMode { mode: _ } => {
                 if let Err(e) = send_command_to_miri_service(Command::Action { action: self.clone() }) {
-                    eprintln!("Failed to send action to miri service: {:?}", e);
+                    eprintln!("{}", e);
                 }
             }
         }
@@ -33,10 +36,13 @@ impl CliRunner for MiriGet {
     async fn run(&self, mut _niri_ipc: Socket) {
         match self {
             MiriGet::FocusedWorkspaceMode => {
-                send_command_to_miri_service(Command::Get {
+                match send_command_to_miri_service(Command::Get {
                     get: MiriGet::FocusedWorkspaceMode,
-                })
-                .expect("Get commands require the miri service to be running. Run `miri service start` or setup the systemd user service");
+                }) {
+                    Ok(MiriResponse::FocusedWorkspaceMode(mode)) => println!("{}", mode.as_str()),
+                    Ok(response) => eprintln!("The miri service returned an unexpected response: {:?}", response),
+                    Err(e) => eprintln!("{}", e),
+                }
             }
         }
     }
@@ -47,10 +53,11 @@ impl CliRunner for MiriOverride {
         match send_command_to_miri_service(Command::Override {
             override_action: self.clone(),
         }) {
-            Ok(()) => {}
-            Err(_) => {
+            Ok(_) => {}
+            Err(MiriServiceError::ConnectionFailed(_)) => {
                 miri_overrides::scroll_passthrough(self.clone(), &mut niri_ipc);
             }
+            Err(e) => eprintln!("{}", e),
         }
     }
 }
