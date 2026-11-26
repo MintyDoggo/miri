@@ -2,19 +2,41 @@ use niri_ipc::{Action, SizeChange, Window, socket::Socket};
 
 use crate::{
     config::MiriConfig,
-    niri_ipc_utils::send_action,
+    niri_ipc_utils::{get_output_logical_size, send_action},
     service_state::{MiriWindow, MiriWorkspace},
 };
 
-fn handle_single_window(config: &MiriConfig, single_window_id: u64, action_socket: &mut Socket) {
+fn handle_single_window(config: &MiriConfig, single_window_id: u64, output: &str, action_socket: &mut Socket) {
     if config.master.maximize_single_window {
+        let change = single_window_size_change(config, output, action_socket);
         send_action(
             action_socket,
             Action::SetWindowWidth {
                 id: Some(single_window_id),
-                change: niri_ipc::SizeChange::SetProportion(100.0),
+                change,
             },
         );
+    }
+}
+
+fn single_window_size_change(config: &MiriConfig, output: &str, action_socket: &mut Socket) -> SizeChange {
+    let full_width = SizeChange::SetProportion(100.0);
+
+    if !config.master.limits_single_window() {
+        return full_width;
+    }
+
+    let Some((output_width, output_height)) = get_output_logical_size(action_socket, output) else {
+        eprintln!(
+            "Could not get the logical size of output {}, using the full width",
+            output
+        );
+        return full_width;
+    };
+
+    match config.master.single_window_width(output_width, output_height) {
+        Some(width) => SizeChange::SetFixed(width),
+        None => full_width,
     }
 }
 
@@ -65,7 +87,7 @@ pub fn handle_master_gain_window(
     };
 
     if tiled_windows.len() == 1 {
-        handle_single_window(&config, new_window.id, action_socket);
+        handle_single_window(config, new_window.id, &current_workspace.output, action_socket);
         return;
     }
 
@@ -138,7 +160,12 @@ pub fn handle_master_lose_window(
     };
 
     if tiled_windows.len() == 1 {
-        handle_single_window(config, tiled_windows[0].id, action_socket);
+        handle_single_window(
+            config,
+            tiled_windows[0].id,
+            &current_workspace_state.output,
+            action_socket,
+        );
         return;
     }
 
@@ -166,7 +193,7 @@ pub fn handle_master_lose_window(
     }
 }
 
-pub fn force_master_layout(workspace_windows: Vec<&Window>, socket: &mut Socket, config: &MiriConfig) {
+pub fn force_master_layout(workspace_windows: Vec<&Window>, socket: &mut Socket, config: &MiriConfig, output: &str) {
     let window_count = workspace_windows.len();
 
     if window_count == 0 {
@@ -174,15 +201,7 @@ pub fn force_master_layout(workspace_windows: Vec<&Window>, socket: &mut Socket,
     }
 
     if window_count == 1 {
-        if config.master.maximize_single_window {
-            send_action(
-                socket,
-                Action::SetWindowWidth {
-                    id: Some(workspace_windows[0].id),
-                    change: SizeChange::SetProportion(100.0),
-                },
-            );
-        }
+        handle_single_window(config, workspace_windows[0].id, output, socket);
         return;
     }
 

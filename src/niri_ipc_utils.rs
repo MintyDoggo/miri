@@ -33,6 +33,16 @@ pub fn warn_if_version_mismatch(action_socket: &mut Socket) {
     }
 }
 
+pub fn get_output_logical_size(action_socket: &mut Socket, output_name: &str) -> Option<(f64, f64)> {
+    let reply = action_socket.send(Request::Outputs).ok()?;
+    let Response::Outputs(outputs) = reply.ok()? else {
+        return None;
+    };
+    let logical = outputs.get(output_name)?.logical.as_ref()?;
+
+    Some((f64::from(logical.width), f64::from(logical.height)))
+}
+
 pub fn get_focused_window(event_state: &EventStreamState) -> Option<&Window> {
     event_state.windows.windows.values().find(|window| window.is_focused)
 }

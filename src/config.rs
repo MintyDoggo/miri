@@ -10,6 +10,8 @@ impl MiriDefaults {
     const DEFAULT_WORKSPACE_MODE: Mode = Mode::Master;
     const MASTER_WIDTH_PERCENTAGE: f64 = 50.0;
     const MASTER_MAXIMIZE_SINGLE_WINDOW: bool = true;
+    const MASTER_SINGLE_WINDOW_MAX_WIDTH: f64 = 0.0;
+    const MASTER_SINGLE_WINDOW_ASPECT_RATIO: f64 = 0.0;
     const SCROLL_MAINTAIN_FOCUS_ON_NEW_WINDOW: bool = false;
     const SCROLL_SPREAD_WINDOWS_ON_ENTER: bool = false;
     const SCROLL_COLUMN_WIDTH_PERCENTAGE: f64 = 50.0;
@@ -35,6 +37,8 @@ impl Default for GlobalConfig {
 pub struct MasterConfig {
     pub column_width_percentage: f64,
     pub maximize_single_window: bool,
+    pub single_window_max_width: f64,
+    pub single_window_aspect_ratio: f64,
 }
 
 impl Default for MasterConfig {
@@ -42,7 +46,32 @@ impl Default for MasterConfig {
         Self {
             column_width_percentage: MiriDefaults::MASTER_WIDTH_PERCENTAGE,
             maximize_single_window: MiriDefaults::MASTER_MAXIMIZE_SINGLE_WINDOW,
+            single_window_max_width: MiriDefaults::MASTER_SINGLE_WINDOW_MAX_WIDTH,
+            single_window_aspect_ratio: MiriDefaults::MASTER_SINGLE_WINDOW_ASPECT_RATIO,
         }
+    }
+}
+
+impl MasterConfig {
+    pub fn limits_single_window(&self) -> bool {
+        self.single_window_max_width > 0.0 || self.single_window_aspect_ratio > 0.0
+    }
+
+    pub fn single_window_width(&self, output_width: f64, output_height: f64) -> Option<i32> {
+        let mut width = output_width;
+
+        if self.single_window_aspect_ratio > 0.0 {
+            width = width.min(output_height * self.single_window_aspect_ratio);
+        }
+        if self.single_window_max_width > 0.0 {
+            width = width.min(self.single_window_max_width);
+        }
+
+        if width >= output_width {
+            return None;
+        }
+
+        Some(width.round() as i32)
     }
 }
 
@@ -123,5 +152,54 @@ where
             _ => Ok(MiriDefaults::DEFAULT_WORKSPACE_MODE),
         },
         None => Ok(MiriDefaults::DEFAULT_WORKSPACE_MODE),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn master_config(max_width: f64, aspect_ratio: f64) -> MasterConfig {
+        MasterConfig {
+            single_window_max_width: max_width,
+            single_window_aspect_ratio: aspect_ratio,
+            ..MasterConfig::default()
+        }
+    }
+
+    #[test]
+    fn unlimited_single_window_takes_the_full_width() {
+        let config = master_config(0.0, 0.0);
+
+        assert!(!config.limits_single_window());
+        assert_eq!(config.single_window_width(3440.0, 1440.0), None);
+    }
+
+    #[test]
+    fn max_width_caps_a_wider_output_only() {
+        let config = master_config(2400.0, 0.0);
+
+        assert_eq!(config.single_window_width(3440.0, 1440.0), Some(2400));
+        assert_eq!(config.single_window_width(1920.0, 1080.0), None);
+    }
+
+    #[test]
+    fn aspect_ratio_scales_with_the_output_height() {
+        let config = master_config(0.0, 16.0 / 9.0);
+
+        assert_eq!(config.single_window_width(3440.0, 1440.0), Some(2560));
+        assert_eq!(config.single_window_width(1920.0, 1080.0), None);
+    }
+
+    #[test]
+    fn the_smaller_of_the_two_limits_wins() {
+        assert_eq!(
+            master_config(2400.0, 16.0 / 9.0).single_window_width(3440.0, 1440.0),
+            Some(2400)
+        );
+        assert_eq!(
+            master_config(2800.0, 16.0 / 9.0).single_window_width(3440.0, 1440.0),
+            Some(2560)
+        );
     }
 }

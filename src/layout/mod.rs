@@ -53,7 +53,7 @@ impl WorkspaceLayout for MiriWorkspace {
     }
     fn force_mode(&self, windows: Vec<&Window>, socket: &mut Socket, config: &MiriConfig) {
         match self.mode {
-            Mode::Master => force_master_layout(windows, socket, config),
+            Mode::Master => force_master_layout(windows, socket, config, &self.output),
             Mode::Scroll => {
                 if config.scroll.spread_windows_on_enter {
                     force_scroll_layout(windows, socket, config.scroll.column_width_percentage);
